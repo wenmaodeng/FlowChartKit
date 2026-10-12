@@ -1,0 +1,50 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Visual Studio cache / temp
+.vs/
+*.cache
+*.dat
+*.log
+*.tlog
+*.tmp
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+*.dll.config
+
+## Roslyn
+*.dbmdl
+*.dbproj.schemaview
+*.ldf
+*.mdf
+*.pdb
+
+## User-specific files
+*.rsuser
+*.rsproj
+
+## JetBrains Rider
+.idea/
+
+## VS Code
+.vscode/
+
+## macOS
+.DS_Store
