@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="FlowChartKit/FlowChartKit.csproj" />
+  <Project Path="FlowChartKit.Demo/FlowChartKit.Demo.csproj" />
+</Solution>

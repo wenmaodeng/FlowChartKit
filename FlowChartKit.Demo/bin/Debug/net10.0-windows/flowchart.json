@@ -1,0 +1,308 @@
+{
+  "Width": 1400,
+  "Height": 900,
+  "Nodes": [
+    {
+      "Id": "07540b9d66e442bfb9ba0139ef73123d",
+      "Kind": "PumpModule",
+      "X": 398.6666666666665,
+      "Y": 80.66666666666669,
+      "Label": "\u8FDB\u6837\u6CE8\u5C04\u6CF5",
+      "W": 130,
+      "H": 320
+    },
+    {
+      "Id": "448d7d05bf71495f8863699048fac0f9",
+      "Kind": "SampleCup",
+      "X": 44.66666666666667,
+      "Y": 58,
+      "Label": "\u6837\u54C1\u676F",
+      "W": 46,
+      "H": 64
+    },
+    {
+      "Id": "4508b7ecf3f84ad0bb41805b3066cc05",
+      "Kind": "NeedleWash",
+      "X": 55,
+      "Y": 290,
+      "Label": "\u6D17\u9488\u4F4D",
+      "W": 46,
+      "H": 84
+    },
+    {
+      "Id": "9affd49f4d634bdfb42a349a2e5e2ff9",
+      "Kind": "Cuvette",
+      "X": 55,
+      "Y": 500,
+      "Label": "2cm\u6BD4\u8272\u76BF",
+      "W": 46,
+      "H": 74
+    },
+    {
+      "Id": "d52d33c6028b43a0b0fee64f71fe419c",
+      "Kind": "Waste",
+      "X": 240,
+      "Y": 520,
+      "Label": "\u5E9F\u6DB2",
+      "W": 64,
+      "H": 76
+    },
+    {
+      "Id": "311139617eec49bd951a5b3d571f0706",
+      "Kind": "ReactionCup",
+      "X": 582.6666666666665,
+      "Y": 531.3333333333335,
+      "Label": "\u53CD\u5E94\u676F",
+      "W": 56,
+      "H": 80
+    },
+    {
+      "Id": "1514500c2ca04de1b9abaad9f218c85d",
+      "Kind": "Centrifuge",
+      "X": 698,
+      "Y": 494.0000000000001,
+      "Label": "\u79BB\u5FC3\u4F4D",
+      "W": 56,
+      "H": 80
+    },
+    {
+      "Id": "ee4b961f0d354ca385d5300a23025914",
+      "Kind": "ReagentBottle",
+      "X": 684,
+      "Y": 51.33333333333334,
+      "Label": "\u7EB3\u6C0F\u8BD5\u5242",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "dbd5e626ad1d418ea06711e6a8a88059",
+      "Kind": "ReagentBottle",
+      "X": 780,
+      "Y": 40,
+      "Label": "\u9152\u77F3\u9178\u94BE\u94A0",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "382f5f137dcd418d8a1e467f0d371cf0",
+      "Kind": "ReagentBottle",
+      "X": 900,
+      "Y": 40,
+      "Label": "4-\u6C28\u57FA\u5B89\u66FF\u6BD4\u6797",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "ea77ca802c934ec3bee2a1bfdffd1fc8",
+      "Kind": "ReagentBottle",
+      "X": 1020,
+      "Y": 40,
+      "Label": "\u785D\u666E\u94A0",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "8d1526ef899f445baba8c4f37ceaf36d",
+      "Kind": "ReagentBottle",
+      "X": 714.6666666666664,
+      "Y": 339.99999999999994,
+      "Label": "\u7EAF\u6C34",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "627cf7f7d683471db7b72270ab1e239c",
+      "Kind": "ReagentBottle",
+      "X": 780,
+      "Y": 210,
+      "Label": "\u7F13\u51B2\u6EB6\u6DB2",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "9271090c832d488783c26214b11d6646",
+      "Kind": "ReagentBottle",
+      "X": 900,
+      "Y": 210,
+      "Label": "\u6807\u6DB2",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "2f3d3a1bbd3e4a90b66085623ac64d7a",
+      "Kind": "ReagentBottle",
+      "X": 998.6666666666665,
+      "Y": 292.6666666666667,
+      "Label": "\u84B8\u998F\u4EEA",
+      "W": 56,
+      "H": 58
+    },
+    {
+      "Id": "faa0c80d0fbf44ac9928a5143c40855a",
+      "Kind": "ReagentBottle",
+      "X": 1114,
+      "Y": 190.66666666666669,
+      "Label": "\u8BD5\u5242\u74F6",
+      "W": 56,
+      "H": 58
+    }
+  ],
+  "Connections": [
+    {
+      "Id": "a2ee7eacb1ab4a3ea1df6de95fdc03c0",
+      "SourceNodeId": "448d7d05bf71495f8863699048fac0f9",
+      "SourcePortId": "R",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "L1",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "badf08095c2f4ed599741deb45f97fcc",
+      "SourceNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "SourcePortId": "L2",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "4508b7ecf3f84ad0bb41805b3066cc05",
+      "TargetPortId": "R",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "f77cb29865734fe18abeb3102ab4ad3a",
+      "SourceNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "SourcePortId": "B1",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "9affd49f4d634bdfb42a349a2e5e2ff9",
+      "TargetPortId": "R",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "4ed2c21e3b2846d0ba92be719b7acc85",
+      "SourceNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "SourcePortId": "B2",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "d52d33c6028b43a0b0fee64f71fe419c",
+      "TargetPortId": "T",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Reverse"
+    },
+    {
+      "Id": "1650c32f17f14d21b4e68f350d954ee0",
+      "SourceNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "SourcePortId": "B3",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "1514500c2ca04de1b9abaad9f218c85d",
+      "TargetPortId": "T",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "1f647bb713ae4fa0aaae17eceb24dfaf",
+      "SourceNodeId": "ee4b961f0d354ca385d5300a23025914",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R1",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "ce4612e6d9dd49ff8c8ca543eb02a2a6",
+      "SourceNodeId": "dbd5e626ad1d418ea06711e6a8a88059",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R1",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "18d28595440b48bf9e677007231fc763",
+      "SourceNodeId": "382f5f137dcd418d8a1e467f0d371cf0",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R1",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "849fa7ad7d2c4c8595b97d375bea2c17",
+      "SourceNodeId": "ea77ca802c934ec3bee2a1bfdffd1fc8",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R1",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "784fa469d04e47bd9496a4f6e3f2ba9a",
+      "SourceNodeId": "8d1526ef899f445baba8c4f37ceaf36d",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R2",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "54aa2788881247a1a165d5dec8430a0e",
+      "SourceNodeId": "627cf7f7d683471db7b72270ab1e239c",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R2",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "575ea73f1d494f9fb8f6c8db46d80c3f",
+      "SourceNodeId": "9271090c832d488783c26214b11d6646",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R2",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    },
+    {
+      "Id": "c510174c24d2455db6c08c315b04e5e1",
+      "SourceNodeId": "faa0c80d0fbf44ac9928a5143c40855a",
+      "SourcePortId": "T",
+      "SourceFreeX": null,
+      "SourceFreeY": null,
+      "TargetNodeId": "07540b9d66e442bfb9ba0139ef73123d",
+      "TargetPortId": "R2",
+      "TargetFreeX": null,
+      "TargetFreeY": null,
+      "Direction": "Forward"
+    }
+  ]
+}
