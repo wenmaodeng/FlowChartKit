@@ -34,5 +34,5 @@ public sealed class ConnectionData
     public string? TargetPortId { get; set; }
     public double? TargetFreeX { get; set; }
     public double? TargetFreeY { get; set; }
-    public FlowMode Direction { get; set; } = FlowMode.Forward;
+    public FlowMode Direction { get; set; } = FlowMode.None;
 }
