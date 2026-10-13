@@ -45,14 +45,26 @@ public class ConnectionViewModel : ObservableBase
 
     public string Id { get; }
 
-    /// <summary>下拉列表显示名：源部件 → 目标部件（任一端未接时显示"自由端"）。</summary>
+    private int _number;
+    /// <summary>管路编号（按集合顺序从 1 开始，持久化）。</summary>
+    public int Number
+    {
+        get => _number;
+        internal set
+        {
+            if (Set(ref _number, value))
+                Raise(nameof(DisplayName));
+        }
+    }
+
+    /// <summary>下拉列表显示名：#编号 源部件 → 目标部件（任一端未接时显示"自由端"）。</summary>
     public string DisplayName
     {
         get
         {
             var src = SourceNode?.Label ?? "自由端";
             var tgt = TargetNode?.Label ?? "自由端";
-            return $"{src} → {tgt}";
+            return $"#{_number} {src} → {tgt}";
         }
     }
 

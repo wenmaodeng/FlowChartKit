@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -26,6 +27,7 @@ public class PipeControl : Control
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private ConnectionViewModel? _vm;
+    private DiagramViewModel? _diagram;
     private bool _draggingEndpoint;
     private bool _dragIsStart;
 
@@ -50,7 +52,11 @@ public class PipeControl : Control
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm != null)
+        {
             _vm.PropertyChanged -= OnVmPropertyChanged;
+            if (_diagram != null)
+                _diagram.PropertyChanged -= OnDiagramPropertyChanged;
+        }
 
         _vm = e.NewValue as ConnectionViewModel;
 
@@ -58,9 +64,15 @@ public class PipeControl : Control
         {
             _vm.PropertyChanged += OnVmPropertyChanged;
             var diagram = _vm.Diagram;
+            _diagram = diagram;
+            diagram.PropertyChanged += OnDiagramPropertyChanged;
             Width = diagram.CanvasWidth;
             Height = diagram.CanvasHeight;
             UpdateFlowAnimation();
+        }
+        else
+        {
+            _diagram = null;
         }
         InvalidateVisual();
     }
@@ -82,6 +94,12 @@ public class PipeControl : Control
                 InvalidateVisual();
                 break;
         }
+    }
+
+    private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DiagramViewModel.ShowNumbers))
+            InvalidateVisual();
     }
 
     private void UpdateFlowAnimation()
@@ -157,6 +175,43 @@ public class PipeControl : Control
         {
             dc.DrawEllipse(Brushes.White, new Pen(HandleStroke, 1.5), pts[0], 5, 5);
             dc.DrawEllipse(Brushes.White, new Pen(HandleStroke, 1.5), pts[^1], 5, 5);
+        }
+
+        // 编号徽章（按 ShowNumbers 开关）—— 位于管路折线长度中点处
+        if (vm.Diagram.ShowNumbers)
+        {
+            double totalLen = 0;
+            for (int i = 1; i < pts.Length; i++)
+                totalLen += (pts[i] - pts[i - 1]).Length;
+            double half = totalLen / 2;
+            double acc = 0;
+            var center = pts[0];
+            for (int i = 1; i < pts.Length; i++)
+            {
+                var seg = pts[i] - pts[i - 1];
+                double segLen = seg.Length;
+                if (acc + segLen >= half)
+                {
+                    double t = segLen > 0 ? (half - acc) / segLen : 0;
+                    center = new Point(pts[i - 1].X + seg.X * t, pts[i - 1].Y + seg.Y * t);
+                    break;
+                }
+                acc += segLen;
+            }
+
+            var badgePen = new Pen(brush, 1.6);
+            dc.DrawEllipse(Brushes.White, badgePen, center, 11, 11);
+
+            var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+            var ft = new FormattedText(
+                vm.Number.ToString(),
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Arial"),
+                11.0,
+                brush,
+                dpi);
+            dc.DrawText(ft, new Point(center.X - ft.Width / 2, center.Y - ft.Height / 2));
         }
     }
 

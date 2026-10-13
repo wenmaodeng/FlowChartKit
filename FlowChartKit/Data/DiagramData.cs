@@ -25,6 +25,7 @@ public sealed class NodeData
 public sealed class ConnectionData
 {
     public string Id { get; set; } = "";
+    public int Number { get; set; }
     public string? SourceNodeId { get; set; }
     public string? SourcePortId { get; set; }
     public double? SourceFreeX { get; set; }

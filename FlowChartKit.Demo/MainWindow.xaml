@@ -42,6 +42,9 @@
                           DisplayMemberPath="DisplayName"
                           Width="220" Margin="0,0,6,0"
                           ToolTip="从下拉列表选择管路（除画布点击外的另一种选中方式）" />
+                <CheckBox Content="显示编号" IsChecked="{Binding Diagram.ShowNumbers}"
+                          VerticalAlignment="Center" Margin="6,0,12,0"
+                          ToolTip="在画布上显示管路编号徽章" />
                 <TextBlock Text="选中流向：" VerticalAlignment="Center" />
                 <Button Content="正向" Command="{Binding Diagram.SetDirectionCommand}"
                         CommandParameter="Forward" Margin="0,0,6,0" Padding="10,4" />

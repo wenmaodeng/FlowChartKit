@@ -10,6 +10,7 @@ namespace FlowChartKit.ViewModels;
 public class DiagramViewModel : ObservableBase
 {
     private bool _isEditable = true;
+    private bool _showNumbers = true;
     private NodeViewModel? _selectedNode;
     private ConnectionViewModel? _selectedConnection;
     private PortViewModel? _highlightedPort;
@@ -52,6 +53,9 @@ public class DiagramViewModel : ObservableBase
 
     /// <summary>编辑模式：true 允许拖动部件/端点并显示端点手柄。</summary>
     public bool IsEditable { get => _isEditable; set => Set(ref _isEditable, value); }
+
+    /// <summary>是否在画布上显示管路编号。</summary>
+    public bool ShowNumbers { get => _showNumbers; set => Set(ref _showNumbers, value); }
 
     public NodeViewModel? SelectedNode
     {
@@ -106,6 +110,15 @@ public class DiagramViewModel : ObservableBase
 
     // ---- 构建 ----
 
+    /// <summary>分配下一个管路编号：现有最大编号 + 1（无则 1）。</summary>
+    private int NextNumber()
+    {
+        int max = 0;
+        foreach (var c in Connections)
+            if (c.Number > max) max = c.Number;
+        return max + 1;
+    }
+
     public NodeViewModel AddNode(NodeKind kind, double x, double y, string? label = null, string? id = null)
     {
         var node = new NodeViewModel(kind, label, x, y, id);
@@ -128,6 +141,7 @@ public class DiagramViewModel : ObservableBase
             TargetPort = targetPort,
             Direction = direction
         };
+        conn.Number = NextNumber();
         Connections.Add(conn);
         conn.Recompute();
         return conn;
@@ -135,6 +149,8 @@ public class DiagramViewModel : ObservableBase
 
     public ConnectionViewModel AddConnection(ConnectionViewModel conn)
     {
+        if (conn.Number == 0)
+            conn.Number = NextNumber();
         Connections.Add(conn);
         conn.Recompute();
         return conn;
@@ -146,6 +162,7 @@ public class DiagramViewModel : ObservableBase
         var conn = new ConnectionViewModel(this) { Direction = direction };
         conn.SetFreeEnd(true, start);
         conn.SetFreeEnd(false, end);
+        conn.Number = NextNumber();
         Connections.Add(conn);
         conn.Recompute();
         return conn;
@@ -244,6 +261,7 @@ public class DiagramViewModel : ObservableBase
             var cd = new ConnectionData
             {
                 Id = c.Id,
+                Number = c.Number,
                 Direction = c.Direction,
                 SourceNodeId = c.SourceNode?.Id,
                 SourcePortId = c.SourcePort?.Id,
@@ -288,6 +306,7 @@ public class DiagramViewModel : ObservableBase
         foreach (var cd in data.Connections)
         {
             var conn = new ConnectionViewModel(this, cd.Id) { Direction = cd.Direction };
+            conn.Number = cd.Number > 0 ? cd.Number : NextNumber();
 
             if (cd.SourceNodeId is { } snId && map.TryGetValue(snId, out var sn))
             {
