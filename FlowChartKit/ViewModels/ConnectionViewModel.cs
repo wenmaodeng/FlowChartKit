@@ -45,6 +45,17 @@ public class ConnectionViewModel : ObservableBase
 
     public string Id { get; }
 
+    /// <summary>下拉列表显示名：源部件 → 目标部件（任一端未接时显示"自由端"）。</summary>
+    public string DisplayName
+    {
+        get
+        {
+            var src = SourceNode?.Label ?? "自由端";
+            var tgt = TargetNode?.Label ?? "自由端";
+            return $"{src} → {tgt}";
+        }
+    }
+
     public NodeViewModel? SourceNode { get; internal set; }
     public PortViewModel? SourcePort { get; internal set; }
     public Point? FreeSource { get; internal set; }
@@ -84,6 +95,7 @@ public class ConnectionViewModel : ObservableBase
             TargetPort = port;
             FreeTarget = null;
         }
+        Raise(nameof(DisplayName));
         Recompute();
     }
 
@@ -101,6 +113,7 @@ public class ConnectionViewModel : ObservableBase
             TargetPort = null;
             FreeTarget = p;
         }
+        Raise(nameof(DisplayName));
         Recompute();
     }
 

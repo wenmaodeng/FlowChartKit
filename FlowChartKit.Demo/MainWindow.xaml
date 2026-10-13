@@ -36,6 +36,12 @@
                         Margin="8,0,0,0" Padding="12,4"
                         ToolTip="新建一条管路，拖动两端端点吸附到部件端口" />
                 <Separator Margin="16,0" />
+                <TextBlock Text="管路：" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding Diagram.Connections}"
+                          SelectedItem="{Binding Diagram.SelectedConnection}"
+                          DisplayMemberPath="DisplayName"
+                          Width="220" Margin="0,0,6,0"
+                          ToolTip="从下拉列表选择管路（除画布点击外的另一种选中方式）" />
                 <TextBlock Text="选中流向：" VerticalAlignment="Center" />
                 <Button Content="正向" Command="{Binding Diagram.SetDirectionCommand}"
                         CommandParameter="Forward" Margin="0,0,6,0" Padding="10,4" />
