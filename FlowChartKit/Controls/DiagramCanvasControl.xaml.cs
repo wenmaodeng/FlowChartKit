@@ -16,11 +16,9 @@ namespace FlowChartKit.Controls;
 /// 流路图画布控件：承载管路层（下层）与部件层（上层）两个 ItemsControl。
 /// 内置并持有 <see cref="Diagram"/> 图模型，外部无需绑定数据源；
 /// 通过 <see cref="LayoutFilePath"/> 指定序列化文件（未指定则用默认路径），加载时自动读取。
-/// 全部操作走右键菜单：未选中时可添加部件/管路；选中管路后可设正向/反向/停止/删除；
-/// 选中部件后可删除；始终提供编辑模式、保存布局、恢复示例。
-/// 与宿主的解耦方式：宿主 ViewModel 实现 <see cref="IFlowDirectionRequester"/> 并触发
-/// <see cref="IFlowDirectionRequester.SetDirectionRequested"/> 事件，本控件订阅后调用
-/// <see cref="SetConnectionDirection"/> 落到图模型——VM 完全不引用本控件类型。
+/// 全部操作走右键菜单（菜单构建见 <see cref="CanvasContextMenuBuilder"/>）；
+/// 布局读写走 <see cref="LayoutStore"/>，可注入自定义存储；
+/// 与宿主的解耦（设置流向请求）见 DiagramCanvasControl.DirectionBridge.cs。
 /// </summary>
 public partial class DiagramCanvasControl : UserControl
 {
@@ -53,8 +51,8 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>最近一次右键的画布坐标，供菜单里的"添加"操作定位。</summary>
     private Point _menuPosition;
 
-    /// <summary>当前订阅了设置流向事件的宿主请求方（DataContext 实现 <see cref="IFlowDirectionRequester"/> 时）。</summary>
-    private IFlowDirectionRequester? _requester;
+    /// <summary>布局读写存储；默认 JSON 文件，宿主可注入自定义实现。</summary>
+    public IDiagramLayoutStore LayoutStore { get; set; } = new JsonDiagramLayoutStore();
 
     public DiagramCanvasControl()
     {
@@ -78,7 +76,6 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>内置流路图视图模型（控件自建并持有，外部只读）。</summary>
     public DiagramViewModel Diagram => (DiagramViewModel)GetValue(DiagramProperty);
 
-    /// <summary>
     /// <summary>
     /// 编辑模式：true 允许拖动部件与管路端点，并显示端口与管路编号；false 为只读展示。
     /// 右键菜单始终可用，非编辑模式下正是靠菜单里的「编辑模式」勾选项切回来。
@@ -150,7 +147,7 @@ public partial class DiagramCanvasControl : UserControl
     {
         try
         {
-            var data = DiagramSerializer.Load(EffectiveLayoutFilePath);
+            var data = LayoutStore.Load(EffectiveLayoutFilePath);
             if (data is null) BuildDemo();
             else Diagram.Load(data);
         }
@@ -165,7 +162,7 @@ public partial class DiagramCanvasControl : UserControl
         try
         {
             var path = EffectiveLayoutFilePath;
-            DiagramSerializer.Save(Diagram.ToData(), path);
+            LayoutStore.Save(Diagram.ToData(), path);
             StatusChanged?.Invoke($"已保存：{path}");
         }
         catch (Exception ex)
@@ -212,42 +209,6 @@ public partial class DiagramCanvasControl : UserControl
         PropertiesDialog.Show(Window.GetWindow(this), target);
     }
 
-    /// <summary>
-    /// 按管路编号设置流向。由 <see cref="OnSetDirectionRequested"/> 在收到 VM 的
-    /// <see cref="IFlowDirectionRequester.SetDirectionRequested"/> 事件时调用，也可被宿主代码直接调用。
-    /// 编号与画布上的编号徽章一致，从 1 开始。
-    /// </summary>
-    /// <returns>找到并设置了该编号的管路时为 true；编号不存在时为 false。</returns>
-    public bool SetConnectionDirection(int number, FlowMode direction)
-    {
-        var connection = Diagram.Connections.FirstOrDefault(c => c.Number == number);
-        if (connection is null)
-        {
-            StatusChanged?.Invoke($"未找到编号为 {number} 的管路");
-            return false;
-        }
-
-        connection.Direction = direction;
-        StatusChanged?.Invoke($"管路 #{number} 已设为{FlowModeDefaults.DisplayName(direction)}");
-        return true;
-    }
-
-    /// <summary>DataContext 变为实现 <see cref="IFlowDirectionRequester"/> 的 VM 时订阅其请求事件；切换时先退订旧 VM。</summary>
-    private void OnDataContextChanged(object? sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (_requester is not null)
-            _requester.SetDirectionRequested -= OnSetDirectionRequested;
-        _requester = e.NewValue as IFlowDirectionRequester;
-        if (_requester is not null)
-            _requester.SetDirectionRequested += OnSetDirectionRequested;
-    }
-
-    /// <summary>响应 VM 的设置流向请求，落到图模型并把结果回填到事件参数。</summary>
-    private void OnSetDirectionRequested(object? sender, SetDirectionEventArgs e)
-    {
-        e.Result = SetConnectionDirection(e.Number, e.Direction);
-    }
-
     /// <summary>编辑模式下写到图模型。</summary>
     private static void OnIsEditableChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -289,52 +250,9 @@ public partial class DiagramCanvasControl : UserControl
         diagram.SelectedConnection = null;
     }
 
-    /// <summary>菜单打开前按当前选中状态重建菜单项。</summary>
+    /// <summary>菜单打开前按当前选中状态重建菜单项（构建逻辑见 <see cref="CanvasContextMenuBuilder"/>）。</summary>
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
-    {
-        var diagram = Diagram;
-        var menu = CanvasMenu;
-        menu.Items.Clear();
-
-        if (diagram.SelectedConnection is not null)
-        {
-            menu.Items.Add(NewItem(FlowModeDefaults.DisplayName(FlowMode.Forward), diagram.SetDirectionCommand, FlowMode.Forward));
-            menu.Items.Add(NewItem(FlowModeDefaults.DisplayName(FlowMode.Reverse), diagram.SetDirectionCommand, FlowMode.Reverse));
-            menu.Items.Add(NewItem(FlowModeDefaults.DisplayName(FlowMode.None), diagram.SetDirectionCommand, FlowMode.None));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(NewItem("属性", ShowPropertiesCommand, null));
-            menu.Items.Add(NewItem("删除管路", diagram.DeleteSelectedCommand, null));
-        }
-        else if (diagram.SelectedNode is not null)
-        {
-            menu.Items.Add(NewItem("属性", ShowPropertiesCommand, null));
-            menu.Items.Add(NewItem("删除部件", diagram.DeleteSelectedCommand, null));
-        }
-        else
-        {
-            var addNode = new MenuItem { Header = "添加部件" };
-            foreach (var kind in Enum.GetValues<NodeKind>())
-                addNode.Items.Add(NewItem(NodeKindDefaults.DisplayName(kind), AddNodeCommand, kind));
-            menu.Items.Add(addNode);
-            menu.Items.Add(NewItem("添加管路", AddConnectionCommand, null));
-        }
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(NewEditableItem());
-        menu.Items.Add(NewItem("保存布局", SaveLayoutCommand, null));
-        menu.Items.Add(NewItem("恢复示例", ResetDemoCommand, null));
-    }
-
-    private static MenuItem NewItem(string header, ICommand command, object? parameter)
-        => new() { Header = header, Command = command, CommandParameter = parameter };
-
-    private MenuItem NewEditableItem()
-    {
-        // 走依赖属性而非直接改 Diagram，保证外部绑定与图模型始终一致
-        var item = new MenuItem { Header = "编辑模式", IsCheckable = true, IsChecked = IsEditable };
-        item.Click += (_, _) => IsEditable = item.IsChecked == true;
-        return item;
-    }
+        => CanvasContextMenuBuilder.Build(CanvasMenu, this);
 
     private static T? FindVisualAncestor<T>(DependencyObject? d) where T : DependencyObject
     {

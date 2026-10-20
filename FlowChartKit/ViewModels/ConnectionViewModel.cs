@@ -89,6 +89,8 @@ public class ConnectionViewModel : ObservableBase
 
     public void SetEnd(bool isStart, NodeViewModel node, PortViewModel port)
     {
+        var oldSource = SourceNode;
+        var oldTarget = TargetNode;
         if (isStart)
         {
             SourceNode = node;
@@ -101,12 +103,15 @@ public class ConnectionViewModel : ObservableBase
             TargetPort = port;
             FreeTarget = null;
         }
+        _diagram.IndexConnection(this, oldSource, oldTarget);
         Raise(nameof(DisplayName));
         Recompute();
     }
 
     public void SetFreeEnd(bool isStart, Point p)
     {
+        var oldSource = SourceNode;
+        var oldTarget = TargetNode;
         if (isStart)
         {
             SourceNode = null;
@@ -119,6 +124,7 @@ public class ConnectionViewModel : ObservableBase
             TargetPort = null;
             FreeTarget = p;
         }
+        _diagram.IndexConnection(this, oldSource, oldTarget);
         Raise(nameof(DisplayName));
         Recompute();
     }

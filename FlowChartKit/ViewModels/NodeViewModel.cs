@@ -47,6 +47,7 @@ public class NodeViewModel : ObservableBase
             {
                 Raise(nameof(ShapeWidth));
                 Raise(nameof(ShapeHeight));
+                GeometryChanged?.Invoke(this);
             }
         }
     }
@@ -61,8 +62,30 @@ public class NodeViewModel : ObservableBase
         set => Set(ref _label, value ?? "");
     }
 
-    public double X { get => _x; set => Set(ref _x, value); }
-    public double Y { get => _y; set => Set(ref _y, value); }
+    /// <summary>几何（位置/尺寸）发生一次"逻辑变化"时触发一次，供图模型合并重算相连管路。
+    /// 与 <see cref="ObservableBase.PropertyChanged"/> 的区别：拖动过程中 X、Y 分开赋值只算一次。</summary>
+    public event Action<NodeViewModel>? GeometryChanged;
+
+    public double X
+    {
+        get => _x;
+        set { if (Set(ref _x, value)) GeometryChanged?.Invoke(this); }
+    }
+
+    public double Y
+    {
+        get => _y;
+        set { if (Set(ref _y, value)) GeometryChanged?.Invoke(this); }
+    }
+
+    /// <summary>一次设置 X/Y，只触发一次 <see cref="GeometryChanged"/>（拖动路径专用，避免重复重算管路）。</summary>
+    public void MoveTo(double x, double y)
+    {
+        if (_x == x && _y == y) return;
+        if (_x != x) { _x = x; Raise(nameof(X)); }
+        if (_y != y) { _y = y; Raise(nameof(Y)); }
+        GeometryChanged?.Invoke(this);
+    }
 
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
 

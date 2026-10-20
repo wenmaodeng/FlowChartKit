@@ -51,6 +51,9 @@ public class DiagramViewModel : ObservableBase
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
 
+    /// <summary>部件 → 相连管路 的索引：节点移动/缩放时只重算自己的管路，避免全图扫描。</summary>
+    private readonly Dictionary<NodeViewModel, List<ConnectionViewModel>> _connectionsByNode = new();
+
     /// <summary>编辑模式：true 允许拖动部件/端点并显示端点手柄；关闭时管路编号一并隐藏。</summary>
     public bool IsEditable
     {
@@ -136,6 +139,7 @@ public class DiagramViewModel : ObservableBase
         var node = new NodeViewModel(kind, label, x, y, id);
         node.Diagram = this;
         node.PropertyChanged += OnNodePropertyChanged;
+        node.GeometryChanged += OnNodeGeometryChanged;
         Nodes.Add(node);
         return node;
     }
@@ -154,6 +158,7 @@ public class DiagramViewModel : ObservableBase
             Direction = direction
         };
         conn.Number = NextNumber();
+        IndexConnection(conn, null, null);
         Connections.Add(conn);
         conn.Recompute();
         return conn;
@@ -163,6 +168,7 @@ public class DiagramViewModel : ObservableBase
     {
         if (conn.Number == 0)
             conn.Number = NextNumber();
+        IndexConnection(conn, null, null);
         Connections.Add(conn);
         conn.Recompute();
         return conn;
@@ -184,6 +190,7 @@ public class DiagramViewModel : ObservableBase
     {
         if (!Connections.Contains(conn)) return;
         if (SelectedConnection == conn) SelectedConnection = null;
+        UnindexConnection(conn);
         Connections.Remove(conn);
     }
 
@@ -191,14 +198,18 @@ public class DiagramViewModel : ObservableBase
     public void RemoveNode(NodeViewModel node)
     {
         if (!Nodes.Contains(node)) return;
-        var conns = Connections.Where(c => c.SourceNode == node || c.TargetNode == node).ToList();
-        foreach (var c in conns)
+        if (_connectionsByNode.TryGetValue(node, out var attached))
         {
-            if (SelectedConnection == c) SelectedConnection = null;
-            Connections.Remove(c);
+            foreach (var c in attached.ToArray())
+            {
+                if (SelectedConnection == c) SelectedConnection = null;
+                UnindexConnection(c);
+                Connections.Remove(c);
+            }
         }
         if (SelectedNode == node) SelectedNode = null;
         node.PropertyChanged -= OnNodePropertyChanged;
+        node.GeometryChanged -= OnNodeGeometryChanged;
         Nodes.Remove(node);
     }
 
@@ -206,28 +217,59 @@ public class DiagramViewModel : ObservableBase
     {
         if (sender is not NodeViewModel node) return;
 
-        switch (e.PropertyName)
+        // 改名后刷新相关管路的显示名（#编号 源 → 目标）；位置/尺寸变化走 GeometryChanged
+        if (e.PropertyName == nameof(NodeViewModel.Label))
         {
-            case nameof(NodeViewModel.Label):
-                // 改名后刷新相关管路的显示名（#编号 源 → 目标）
-                foreach (var conn in Connections)
-                {
-                    if (conn.SourceNode == node || conn.TargetNode == node)
-                        conn.RaiseDisplayName();
-                }
-                break;
+            if (_connectionsByNode.TryGetValue(node, out var list))
+                foreach (var conn in list)
+                    conn.RaiseDisplayName();
+        }
+    }
 
-            // 位置变化或尺寸变化（缩放导致端口位移）都要重布相连的管路
-            case nameof(NodeViewModel.X):
-            case nameof(NodeViewModel.Y):
-            case nameof(NodeViewModel.ShapeWidth):
-            case nameof(NodeViewModel.ShapeHeight):
-                foreach (var conn in Connections)
-                {
-                    if (conn.SourceNode == node || conn.TargetNode == node)
-                        conn.Recompute();
-                }
-                break;
+    /// <summary>节点位置/尺寸的一次逻辑变化：只重算与该节点相连的管路。</summary>
+    private void OnNodeGeometryChanged(NodeViewModel node)
+    {
+        if (_connectionsByNode.TryGetValue(node, out var list))
+            for (int i = 0; i < list.Count; i++)
+                list[i].Recompute();
+    }
+
+    // ---- 部件 → 管路 索引 ----
+
+    /// <summary>按管路当前端点重建索引项；oldSource/oldTarget 为端点变更前的节点（无则传 null）。</summary>
+    internal void IndexConnection(ConnectionViewModel conn, NodeViewModel? oldSource, NodeViewModel? oldTarget)
+    {
+        if (!ReferenceEquals(oldSource, conn.SourceNode))
+        {
+            if (oldSource != null) RemoveFromIndex(oldSource, conn);
+            if (conn.SourceNode != null) AddToIndex(conn.SourceNode, conn);
+        }
+        if (!ReferenceEquals(oldTarget, conn.TargetNode))
+        {
+            if (oldTarget != null) RemoveFromIndex(oldTarget, conn);
+            if (conn.TargetNode != null) AddToIndex(conn.TargetNode, conn);
+        }
+    }
+
+    private void UnindexConnection(ConnectionViewModel conn)
+    {
+        if (conn.SourceNode != null) RemoveFromIndex(conn.SourceNode, conn);
+        if (conn.TargetNode != null) RemoveFromIndex(conn.TargetNode, conn);
+    }
+
+    private void AddToIndex(NodeViewModel node, ConnectionViewModel conn)
+    {
+        if (!_connectionsByNode.TryGetValue(node, out var list))
+            _connectionsByNode[node] = list = new List<ConnectionViewModel>();
+        if (!list.Contains(conn)) list.Add(conn);
+    }
+
+    private void RemoveFromIndex(NodeViewModel node, ConnectionViewModel conn)
+    {
+        if (_connectionsByNode.TryGetValue(node, out var list))
+        {
+            list.Remove(conn);
+            if (list.Count == 0) _connectionsByNode.Remove(node);
         }
     }
 
@@ -312,7 +354,12 @@ public class DiagramViewModel : ObservableBase
         SelectedNode = null;
         SetSnapHighlight(null);
         Connections.Clear();
-        foreach (var n in Nodes) n.PropertyChanged -= OnNodePropertyChanged;
+        _connectionsByNode.Clear();
+        foreach (var n in Nodes)
+        {
+            n.PropertyChanged -= OnNodePropertyChanged;
+            n.GeometryChanged -= OnNodeGeometryChanged;
+        }
         Nodes.Clear();
     }
 

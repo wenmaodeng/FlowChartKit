@@ -31,6 +31,10 @@ public class FlowNodeControl : Control
     private Point _dragStartCanvas;
     private double _origX, _origY;
 
+    // 标签文本缓存：仅在 Label 或 DPI 变化时重建，避免每次 OnRender 构造 FormattedText
+    private FormattedText? _labelText;
+    private double _labelTextDpi = -1;
+
     static FlowNodeControl()
     {
         FocusableProperty.OverrideMetadata(typeof(FlowNodeControl),
@@ -80,7 +84,11 @@ public class FlowNodeControl : Control
         switch (e.PropertyName)
         {
             case nameof(NodeViewModel.IsSelected):
+                InvalidateVisual();
+                break;
+
             case nameof(NodeViewModel.Label):
+                _labelText = null;
                 InvalidateVisual();
                 break;
 
@@ -156,18 +164,22 @@ public class FlowNodeControl : Control
             }
         }
 
-        // 标签
+        // 标签（缓存 FormattedText，仅 Label/DPI 变化时重建）
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var ft = new FormattedText(
-            vm.Label ?? string.Empty,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            new Typeface("Arial"),
-            11.0,
-            LabelBrush,
-            dpi);
-        double tx = (vm.ShapeWidth - ft.Width) / 2;
-        dc.DrawText(ft, new Point(Math.Max(0, tx), vm.ShapeHeight + LabelGap));
+        if (_labelText is null || _labelTextDpi != dpi)
+        {
+            _labelText = new FormattedText(
+                vm.Label ?? string.Empty,
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Arial"),
+                11.0,
+                LabelBrush,
+                dpi);
+            _labelTextDpi = dpi;
+        }
+        double tx = (vm.ShapeWidth - _labelText.Width) / 2;
+        dc.DrawText(_labelText, new Point(Math.Max(0, tx), vm.ShapeHeight + LabelGap));
     }
 
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)
@@ -196,14 +208,16 @@ public class FlowNodeControl : Control
         var diagram = node.Diagram;
         if (diagram is null) return false;
 
-        const double radius = 12;
+        // 半径 12 的平方（与 PipeControl 的 12px 端点判定一致），全程不开根号
+        const double radiusSquared = 12.0 * 12.0;
 
         foreach (var conn in diagram.Connections)
         {
             var pts = conn.Points;
             if (pts.Length < 2) continue;
 
-            if ((pts[0] - canvasPoint).Length < radius || (pts[^1] - canvasPoint).Length < radius)
+            if ((pts[0] - canvasPoint).LengthSquared < radiusSquared
+                || (pts[^1] - canvasPoint).LengthSquared < radiusSquared)
                 return true;
         }
 
@@ -244,8 +258,8 @@ public class FlowNodeControl : Control
             nx = Math.Clamp(nx, 0, Math.Max(0, diagram.CanvasWidth - _vm.ShapeWidth));
             ny = Math.Clamp(ny, 0, Math.Max(0, diagram.CanvasHeight - _vm.ShapeHeight));
         }
-        _vm.X = nx;
-        _vm.Y = ny;
+        // 一次逻辑移动只触发一次 GeometryChanged，相连管路每帧只重算一次
+        _vm.MoveTo(nx, ny);
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)

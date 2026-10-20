@@ -8,6 +8,7 @@ namespace FlowChartKit.Rendering;
 /// <summary>
 /// 按部件类型直接向 DrawingContext 绘制矢量图形（不创建 FrameworkElement）。
 /// 颜色风格与仪器流路图一致：描边蓝、浅色填充。
+/// 路径几何按字符串缓存并冻结；外观可通过 <see cref="NodeRendererRegistry"/> 整体替换。
 /// </summary>
 public static class NodeRenderer
 {
@@ -52,9 +53,15 @@ public static class NodeRenderer
         return pen;
     }
 
-    /// <summary>按部件类型绘制外观。</summary>
+    /// <summary>按部件类型绘制外观；优先取 <see cref="NodeRendererRegistry"/> 中注册的渲染器，未注册时用内置绘制。</summary>
     public static void Render(DrawingContext dc, NodeKind kind)
     {
+        if (NodeRendererRegistry.Resolve(kind) is { } custom)
+        {
+            custom.Render(dc);
+            return;
+        }
+
         switch (kind)
         {
             case NodeKind.SampleCup: DrawSampleCup(dc); break;
@@ -76,8 +83,22 @@ public static class NodeRenderer
     public static void RenderPortHighlight(DrawingContext dc, double cx, double cy)
         => dc.DrawEllipse(null, HighlightPen, new Point(cx, cy), 8, 8);
 
+    // 路径数据都是编译期常量：解析一次并冻结，跨部件实例复用，避免每次渲染重新 Parse
+    private static readonly Dictionary<string, Geometry> s_pathCache = new();
+
+    private static Geometry CachedPath(string data)
+    {
+        if (!s_pathCache.TryGetValue(data, out var geo))
+        {
+            geo = Geometry.Parse(data);
+            geo.Freeze();
+            s_pathCache[data] = geo;
+        }
+        return geo;
+    }
+
     private static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
-        => dc.DrawGeometry(fill, pen, Geometry.Parse(data));
+        => dc.DrawGeometry(fill, pen, CachedPath(data));
 
     private static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, new RectangleGeometry(new Rect(x, y, w, h), r, r));
@@ -109,13 +130,16 @@ public static class NodeRenderer
         DrawPath(dc, "M20,18 L36,18", null, AccentPen);
     }
 
+    // 比色皿的 "G" 字样：FormattedText 可跨渲染复用，无需每帧构造
+    private static readonly FormattedText CuvetteText = new(
+        "G", CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+        new Typeface("Arial"), 12.0, Outline, 1.0);
+
     private static void DrawCuvette(DrawingContext dc)
     {
         DrawRoundRect(dc, 16, 2, 14, 10, 1, FillLight, OutlinePen);
         DrawRoundRect(dc, 8, 12, 30, 56, 2, FillLight, OutlinePen);
-        var g = new FormattedText("G", CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface("Arial"), 12.0, Outline, 1.0);
-        dc.DrawText(g, new Point(18, 28));
+        dc.DrawText(CuvetteText, new Point(18, 28));
     }
 
     private static void DrawCentrifuge(DrawingContext dc)
