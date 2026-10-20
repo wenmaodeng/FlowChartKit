@@ -36,9 +36,9 @@
         </Border>
 
         <!-- 全部操作（添加/流向/删除/保存/恢复/编辑模式）均在画布控件内完成 -->
-        <!-- 设置流向：控件把内置命令经 OneWayToSource 灌入 VM 的 SetDirectionCommand，VM 只认 ICommand -->
+        <!-- 设置流向：控件把内置命令经 OneWayToSource 灌入 VM 的 SetDirectionByNumberCommand，VM 只认 ICommand -->
         <fc:DiagramCanvasControl IsEditable="True"
-                                 SetDirectionCommand="{Binding SetDirectionCommand, Mode=OneWayToSource}" />
+                                 SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}" />
     </DockPanel>
 
 </Window>

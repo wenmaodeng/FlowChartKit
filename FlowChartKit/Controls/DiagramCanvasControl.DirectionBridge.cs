@@ -6,25 +6,26 @@ namespace FlowChartKit.Controls;
 
 /// <summary>
 /// <see cref="DiagramCanvasControl"/> 的"设置流向"桥接部分：
-/// 控件把实现好的 <see cref="SetDirectionCommand"/> 作为依赖属性暴露，
+/// 控件把实现好的 <see cref="SetDirectionByNumberCommand"/> 作为依赖属性暴露，
 /// 宿主 VM 用 OneWayToSource 绑定取走后自行调用——VM 只依赖 <see cref="ICommand"/>
 /// 与 <see cref="SetDirectionRequest"/>，完全不引用控件类型。
+/// 命名为 ByNumber 以区别于 <see cref="ViewModels.DiagramViewModel.SetDirectionCommand"/>（作用于选中管路）。
 /// </summary>
 public partial class DiagramCanvasControl
 {
-    public static readonly DependencyProperty SetDirectionCommandProperty = DependencyProperty.Register(
-        nameof(SetDirectionCommand), typeof(ICommand), typeof(DiagramCanvasControl),
+    public static readonly DependencyProperty SetDirectionByNumberCommandProperty = DependencyProperty.Register(
+        nameof(SetDirectionByNumberCommand), typeof(ICommand), typeof(DiagramCanvasControl),
         new PropertyMetadata(null));
 
     /// <summary>
-    /// 按编号设置流向的命令（控件内置实现，构造时赋值；请勿在外部替换）。
+    /// 按编号设置流向的命令（控件内置实现，Loaded 时赋值；请勿在外部替换）。
     /// 宿主 VM 以 <c>OneWayToSource</c> 绑定取走，参数传 <see cref="SetDirectionRequest"/>，
     /// 执行结果回填到 <see cref="SetDirectionRequest.Result"/>。
     /// </summary>
-    public ICommand? SetDirectionCommand
+    public ICommand? SetDirectionByNumberCommand
     {
-        get => (ICommand?)GetValue(SetDirectionCommandProperty);
-        set => SetValue(SetDirectionCommandProperty, value);
+        get => (ICommand?)GetValue(SetDirectionByNumberCommandProperty);
+        set => SetValue(SetDirectionByNumberCommandProperty, value);
     }
 
     private void ExecuteSetDirection(object? parameter)

@@ -63,6 +63,9 @@ public class PipeControl : Control
         _dashPenSelected = MakePen(SelectedBrush, 2.6, _dashStyle, freeze: false);
         DataContextChanged += OnDataContextChanged;
         Background = Brushes.Transparent;
+        // Forever 动画的时钟会强引用本控件：卸载时必须停止，否则控件被计时系统根住无法回收
+        Loaded += (_, _) => UpdateFlowAnimation();
+        Unloaded += (_, _) => BeginAnimation(DashOffsetProperty, null);
     }
 
     public double DashOffset
@@ -98,6 +101,8 @@ public class PipeControl : Control
         {
             _geometry = null;
             _badgeText = null;
+            // VM 脱离时停止 Forever 动画，避免空转并根住控件
+            BeginAnimation(DashOffsetProperty, null);
         }
         InvalidateVisual();
     }

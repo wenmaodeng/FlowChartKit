@@ -20,7 +20,7 @@ public class MainViewModel : ObservableBase
     private int _number = 1;
     private FlowMode _direction = FlowMode.Forward;
     private string _statusText = "就绪";
-    private ICommand? _setDirectionCommand;
+    private ICommand? _setDirectionByNumberCommand;
 
     /// <summary>ViewModel 直接在 XAML 里创建，无需代码后置注入。</summary>
     public MainViewModel()
@@ -30,10 +30,10 @@ public class MainViewModel : ObservableBase
     }
 
     /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
-    public ICommand? SetDirectionCommand
+    public ICommand? SetDirectionByNumberCommand
     {
-        get => _setDirectionCommand;
-        set => Set(ref _setDirectionCommand, value);
+        get => _setDirectionByNumberCommand;
+        set => Set(ref _setDirectionByNumberCommand, value);
     }
 
     /// <summary>要设置流向的管路编号，从 1 开始，与画布上的编号徽章一致。</summary>
@@ -69,14 +69,14 @@ public class MainViewModel : ObservableBase
     private void Execute()
     {
         // 只发请求、不持有控件；是否成功由控件回填到请求对象的 Result
-        if (SetDirectionCommand is null)
+        if (SetDirectionByNumberCommand is null)
         {
             StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
             return;
         }
 
         var request = new SetDirectionRequest(Number, Direction);
-        SetDirectionCommand.Execute(request);
+        SetDirectionByNumberCommand.Execute(request);
 
         StatusText = request.Result == true
             ? $"管路 #{Number} 已设为{FlowModeDefaults.DisplayName(Direction)}"

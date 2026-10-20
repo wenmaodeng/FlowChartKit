@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -64,11 +65,14 @@ public partial class PropertiesDialog : Window
         };
 
         Refresh();
-        node.PropertyChanged += (_, e) =>
+        // 具名处理器并在 Closed 退订：匿名订阅会捕获 dialog，关闭后仍被节点根住无法回收
+        PropertyChangedEventHandler handler = (_, e) =>
         {
             if (e.PropertyName is nameof(NodeViewModel.ShapeWidth) or nameof(NodeViewModel.ShapeHeight))
                 Refresh();
         };
+        node.PropertyChanged += handler;
+        Closed += (_, _) => node.PropertyChanged -= handler;
 
         AddRow("尺寸", text);
 

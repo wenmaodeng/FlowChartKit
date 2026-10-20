@@ -8,7 +8,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // ViewModel 在 XAML 里创建；"设置流向"走控件的 SetDirectionCommand 依赖属性，
+        // ViewModel 在 XAML 里创建；"设置流向"走控件的 SetDirectionByNumberCommand 依赖属性，
         // 经 OneWayToSource 绑定灌入 VM，代码后置无需任何注入或桥接逻辑。
     }
 }
