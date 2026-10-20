@@ -3,13 +3,9 @@ using System.Windows.Media;
 
 namespace FlowChartKit.Rendering;
 
-/// <summary>
-/// 内置部件定义：每种部件一个类，名称/尺寸/端点/外观集中自管理。
-/// 绘制复用 <see cref="NodeRenderer"/> 的共享画刷/画笔与几何缓存（程序集内部）。
-/// </summary>
+/// <summary>共享端口规格：常规四端口（上下左右中点），泵模块以外的内置部件定义共用。</summary>
 internal static class NodePorts
 {
-    /// <summary>常规四端口（上下左右中点），泵模块以外的部件共用。</summary>
     public static IReadOnlyList<PortSpec> Standard { get; } =
     [
         new PortSpec("T", 0.5, 0, PortDir.Up),

@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Windows;
 using FlowChartKit.Core;
 using FlowChartKit.Rendering;
@@ -30,8 +29,7 @@ public class NodeViewModel : ObservableBase
         (BaseWidth, BaseHeight) = def.BaseSize;
         _x = x;
         _y = y;
-        Ports = new ObservableCollection<PortViewModel>(
-            def.Ports.Select(p => new PortViewModel(this, p.Id, p.FX, p.FY, p.Dir)));
+        Ports = def.Ports.Select(p => new PortViewModel(this, p.Id, p.FX, p.FY, p.Dir)).ToList();
     }
 
     public string Id { get; }
@@ -96,5 +94,6 @@ public class NodeViewModel : ObservableBase
     /// <summary>所属图模型（由 DiagramViewModel.AddNode 设置）。</summary>
     public DiagramViewModel? Diagram { get; internal set; }
 
-    public ObservableCollection<PortViewModel> Ports { get; }
+    /// <summary>端口列表（构造时按部件定义生成，运行期不增删——增删不会触发索引/重算，序列化也不感知）。</summary>
+    public IReadOnlyList<PortViewModel> Ports { get; }
 }

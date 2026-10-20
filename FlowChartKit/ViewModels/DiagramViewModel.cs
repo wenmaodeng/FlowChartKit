@@ -352,11 +352,9 @@ public class DiagramViewModel : ObservableBase
             {
                 Id = n.Id,
                 Kind = n.Kind,
+                Label = n.Label,
                 X = n.X,
                 Y = n.Y,
-                Label = n.Label,
-                W = n.ShapeWidth,
-                H = n.ShapeHeight,
                 Scale = n.Scale
             });
         }
