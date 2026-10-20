@@ -1,152 +1,108 @@
-using System.Windows;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Input;
 using FlowChartKit;
 using FlowChartKit.Core;
-using FlowChartKit.Data;
-using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Demo;
 
-public record PaletteItem(NodeKind Kind, string DisplayName);
+/// <summary>方向下拉框的条目：显示名 + 实际枚举值。</summary>
+public sealed record FlowModeItem(FlowMode Value, string Text);
 
-public class MainViewModel : ObservableBase
+/// <summary>
+/// 宿主 ViewModel：不认识画布控件，只依赖注入进来的回调函数。
+/// 「哪条管路设成什么流向」是业务知识，放在这里，视图代码后置不持有这些参数。
+/// </summary>
+public class MainViewModel : ObservableBase, IFlowDirectionSink
 {
-    private DiagramViewModel _diagram;
+    private Func<int, FlowMode, bool>? _setDirection;
+    private int _number = 1;
+    private FlowMode _direction = FlowMode.Forward;
     private string _statusText = "就绪";
-    private PaletteItem? _selectedPalette;
-    private int _addCascade;
 
+    /// <summary>供 XAML 以 OneWayToSource 绑定接住画布控件的回调（在 XAML 里创建本 VM 时使用）。</summary>
     public MainViewModel()
     {
-        Palette =
-        [
-            new PaletteItem(NodeKind.SampleCup, "样品杯"),
-            new PaletteItem(NodeKind.ReagentBottle, "试剂瓶"),
-            new PaletteItem(NodeKind.Waste, "废液"),
-            new PaletteItem(NodeKind.ReactionCup, "反应杯"),
-            new PaletteItem(NodeKind.Cuvette, "2cm比色皿"),
-            new PaletteItem(NodeKind.Centrifuge, "离心位"),
-            new PaletteItem(NodeKind.NeedleWash, "洗针位"),
-            new PaletteItem(NodeKind.PumpModule, "注射泵"),
-        ];
-        _selectedPalette = Palette[1];
-
-        SaveCommand = new RelayCommand(_ => Save());
-        ResetDemoCommand = new RelayCommand(_ =>
-        {
-            Diagram = BuildDemo();
-            StatusText = "已恢复示例布局";
-        });
-        AddNodeCommand = new RelayCommand(_ =>
-        {
-            if (_selectedPalette is null) return;
-            double x = 560 + (_addCascade % 6) * 24;
-            double y = 420 + (_addCascade % 6) * 24;
-            _addCascade++;
-            Diagram.AddNode(_selectedPalette.Kind, x, y, _selectedPalette.DisplayName);
-            StatusText = $"已添加部件：{_selectedPalette.DisplayName}";
-        });
-
-        AddConnectionCommand = new RelayCommand(_ =>
-        {
-            double cx = 640 + (_addCascade % 6) * 18;
-            double cy = 360 + (_addCascade % 6) * 18;
-            _addCascade++;
-            var conn = Diagram.AddFreeConnection(new Point(cx, cy), new Point(cx + 120, cy));
-            Diagram.SelectedConnection = conn;
-            StatusText = "已添加管路，拖动两端端点吸附到部件端口";
-        });
-
-        _diagram = TryLoadFile() ?? BuildDemo();
+        // 按钮可用性只判编号：回调是否到位改由状态栏提示，避免"灰按钮"掩盖真实原因
+        ApplyCommand = new RelayCommand(_ => Execute(), _ => Number > 0);
     }
 
-    public DiagramViewModel Diagram
+    /// <param name="setDirection">按编号设置流向的回调，对应 <see cref="Controls.DiagramCanvasControl.SetConnectionDirection"/>。</param>
+    public MainViewModel(Func<int, FlowMode, bool> setDirection) : this()
     {
-        get => _diagram;
-        private set
+        SetDirection = setDirection;
+    }
+
+    /// <summary>
+    /// 按编号设置流向的回调。由画布控件写入（绑定回传或 IFlowDirectionSink 直写），也可代码注入；
+    /// 为空时按钮自动不可用，不会出现空引用。
+    /// </summary>
+    public Func<int, FlowMode, bool>? SetDirection
+    {
+        get => _setDirection;
+        set
         {
-            if (Set(ref _diagram, value))
-                Raise(nameof(DeleteSelectedCommand));
+            if (!Set(ref _setDirection, value)) return;
+            // 回调到位后按钮要立刻可用：CanExecute 依赖它，得主动让命令重新求值
+            RelayCommand.Refresh();
         }
     }
 
-    /// <summary>委派给 Diagram.DeleteSelectedCommand（删除选中的部件或管路）。</summary>
-    public System.Windows.Input.ICommand DeleteSelectedCommand => Diagram.DeleteSelectedCommand;
-
-    /// <summary>在指定画布坐标处创建部件。</summary>
-    public void AddNodeAt(NodeKind kind, double x, double y)
+    /// <summary>要设置流向的管路编号，从 1 开始，与画布上的编号徽章一致。</summary>
+    public int Number
     {
-        var display = NodeKindDefaults.DisplayName(kind);
-        Diagram.AddNode(kind, x, y, display);
-        StatusText = $"已添加部件：{display}";
+        get => _number;
+        set => Set(ref _number, value);
     }
 
-    public bool IsEditable
+    /// <summary>目标流向。</summary>
+    public FlowMode Direction
     {
-        get => _diagram.IsEditable;
-        set { _diagram.IsEditable = value; Raise(); }
+        get => _direction;
+        set => Set(ref _direction, value);
     }
 
-    public List<PaletteItem> Palette { get; }
-    public PaletteItem? SelectedPalette { get => _selectedPalette; set => Set(ref _selectedPalette, value); }
-    public string StatusText { get => _statusText; set => Set(ref _statusText, value); }
+    /// <summary>下拉框可选项，显示名与画布右键菜单共用 FlowModeDefaults。</summary>
+    public IReadOnlyList<FlowModeItem> Directions { get; } =
+        new[] { FlowMode.Forward, FlowMode.Reverse, FlowMode.None }
+            .Select(m => new FlowModeItem(m, FlowModeDefaults.DisplayName(m)))
+            .ToList();
 
-    public RelayCommand SaveCommand { get; }
-    public RelayCommand ResetDemoCommand { get; }
-    public RelayCommand AddNodeCommand { get; }
-    public RelayCommand AddConnectionCommand { get; }
-
-    private static string FilePath => DiagramSerializer.DefaultFilePath;
-
-    private void Save()
+    /// <summary>最近一次执行的结果提示。</summary>
+    public string StatusText
     {
-        try
+        get => _statusText;
+        set => Set(ref _statusText, value);
+    }
+
+    /// <summary>按当前编号与方向执行回调。</summary>
+    public ICommand ApplyCommand { get; }
+
+    /// <summary>初始流向：1 号正向、2 号反向、3 号停止。</summary>
+    public void ApplyInitialFlow()
+    {
+        var setDirection = SetDirection;
+        if (setDirection is null) return;
+
+        foreach (var (number, mode) in new[] { (1, FlowMode.Forward), (2, FlowMode.Reverse), (3, FlowMode.None) })
+            setDirection(number, mode);
+
+        StatusText = "已恢复初始流向";
+    }
+
+    private void Execute()
+    {
+        var setDirection = SetDirection;
+        if (setDirection is null)
         {
-            DiagramSerializer.Save(Diagram.ToData(), FilePath);
-            StatusText = $"已保存：{FilePath}";
+            StatusText = "回调尚未就绪：画布控件还没把设置流向的方法传过来";
+            return;
         }
-        catch (Exception ex) { StatusText = $"保存失败：{ex.Message}"; }
-    }
 
-    private static DiagramViewModel? TryLoadFile()
-    {
-        try { var data = DiagramSerializer.Load(FilePath); return data is null ? null : DiagramViewModel.FromData(data); }
-        catch { return null; }
-    }
-
-    private static DiagramViewModel BuildDemo()
-    {
-        var d = new DiagramViewModel(1400, 900);
-        var pump = d.AddNode(NodeKind.PumpModule, 300, 60, "进样注射泵");
-        var sample = d.AddNode(NodeKind.SampleCup, 60, 110);
-        var wash = d.AddNode(NodeKind.NeedleWash, 55, 290);
-        var cuvette = d.AddNode(NodeKind.Cuvette, 55, 500);
-        var waste = d.AddNode(NodeKind.Waste, 240, 520);
-        var reaction = d.AddNode(NodeKind.ReactionCup, 400, 520);
-        d.AddNode(NodeKind.Centrifuge, 560, 520);
-
-        NodeViewModel B(double x, double y, string label) => d.AddNode(NodeKind.ReagentBottle, x, y, label);
-        var r1 = B(660, 40, "纳氏试剂");
-        var r2 = B(780, 40, "酒石酸钾钠");
-        var r3 = B(900, 40, "4-氨基安替比林");
-        var r4 = B(1020, 40, "硝普钠");
-        var r5 = B(660, 210, "纯水");
-        var r6 = B(780, 210, "缓冲溶液");
-        var r7 = B(900, 210, "标液");
-        var r8 = B(1020, 210, "蒸馏仪");
-
-        PortViewModel Port(NodeViewModel n, string id)
-            => n.Ports.First(p => p.Id == id);
-
-        d.AddConnection(sample, Port(sample, "R"), pump, Port(pump, "L1"), FlowMode.Forward);
-        d.AddConnection(pump, Port(pump, "L2"), wash, Port(wash, "R"), FlowMode.Forward);
-        d.AddConnection(pump, Port(pump, "B1"), cuvette, Port(cuvette, "R"), FlowMode.Forward);
-        d.AddConnection(pump, Port(pump, "B2"), waste, Port(waste, "T"), FlowMode.Forward);
-        d.AddConnection(pump, Port(pump, "B3"), reaction, Port(reaction, "T"), FlowMode.Forward);
-        foreach (var reagent in new[] { r1, r2, r3, r4 })
-            d.AddConnection(reagent, Port(reagent, "T"), pump, Port(pump, "R1"), FlowMode.Forward);
-        foreach (var reagent in new[] { r5, r6, r7, r8 })
-            d.AddConnection(reagent, Port(reagent, "T"), pump, Port(pump, "R2"), FlowMode.Forward);
-
-        return d;
+        bool ok = setDirection(Number, Direction);
+        StatusText = ok
+            ? $"管路 #{Number} 已设为{FlowModeDefaults.DisplayName(Direction)}"
+            : $"未找到编号为 {Number} 的管路";
     }
 }

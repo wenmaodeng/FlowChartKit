@@ -68,7 +68,11 @@ public static class NodeRenderer
         }
     }
 
-    /// <summary>在指定中心绘制端口吸附高亮圈（橙色虚线环）。</summary>
+    /// <summary>在指定中心绘制端口标记（浅色圆点 + 细描边），编辑模式下常显。</summary>
+    public static void RenderPort(DrawingContext dc, double cx, double cy)
+        => dc.DrawEllipse(FillWhite, OutlinePen12, new Point(cx, cy), 3.2, 3.2);
+
+    /// <summary>在指定中心绘制端口吸附高亮圈（橙色虚线环），拖动端点靠近时叠加在标记外。</summary>
     public static void RenderPortHighlight(DrawingContext dc, double cx, double cy)
         => dc.DrawEllipse(null, HighlightPen, new Point(cx, cy), 8, 8);
 

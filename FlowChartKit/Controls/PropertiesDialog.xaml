@@ -1,0 +1,27 @@
+<Window x:Class="FlowChartKit.Controls.PropertiesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="属性"
+        Width="400" MaxHeight="560"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F7F9FD">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 行内容按目标类型在代码中构建 -->
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="Rows" Margin="0,0,4,0" />
+        </ScrollViewer>
+
+        <Button Grid.Row="1" Content="关闭" Width="84" Padding="0,5"
+                Margin="0,14,0,0" HorizontalAlignment="Right"
+                Click="OnClose" />
+    </Grid>
+</Window>

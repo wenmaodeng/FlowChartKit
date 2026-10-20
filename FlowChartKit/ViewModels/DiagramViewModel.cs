@@ -51,11 +51,23 @@ public class DiagramViewModel : ObservableBase
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
 
-    /// <summary>编辑模式：true 允许拖动部件/端点并显示端点手柄。</summary>
-    public bool IsEditable { get => _isEditable; set => Set(ref _isEditable, value); }
+    /// <summary>编辑模式：true 允许拖动部件/端点并显示端点手柄；关闭时管路编号一并隐藏。</summary>
+    public bool IsEditable
+    {
+        get => _isEditable;
+        set
+        {
+            if (Set(ref _isEditable, value))
+                Raise(nameof(ShowNumbers));
+        }
+    }
 
-    /// <summary>是否在画布上显示管路编号。</summary>
-    public bool ShowNumbers { get => _showNumbers; set => Set(ref _showNumbers, value); }
+    /// <summary>是否在画布上显示管路编号（编号属编辑辅助信息，编辑模式关闭时恒为 false）。</summary>
+    public bool ShowNumbers
+    {
+        get => _showNumbers && _isEditable;
+        set => Set(ref _showNumbers, value);
+    }
 
     public NodeViewModel? SelectedNode
     {
@@ -192,12 +204,30 @@ public class DiagramViewModel : ObservableBase
 
     private void OnNodePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not (nameof(NodeViewModel.X) or nameof(NodeViewModel.Y))) return;
         if (sender is not NodeViewModel node) return;
-        foreach (var conn in Connections)
+
+        switch (e.PropertyName)
         {
-            if (conn.SourceNode == node || conn.TargetNode == node)
-                conn.Recompute();
+            case nameof(NodeViewModel.Label):
+                // 改名后刷新相关管路的显示名（#编号 源 → 目标）
+                foreach (var conn in Connections)
+                {
+                    if (conn.SourceNode == node || conn.TargetNode == node)
+                        conn.RaiseDisplayName();
+                }
+                break;
+
+            // 位置变化或尺寸变化（缩放导致端口位移）都要重布相连的管路
+            case nameof(NodeViewModel.X):
+            case nameof(NodeViewModel.Y):
+            case nameof(NodeViewModel.ShapeWidth):
+            case nameof(NodeViewModel.ShapeHeight):
+                foreach (var conn in Connections)
+                {
+                    if (conn.SourceNode == node || conn.TargetNode == node)
+                        conn.Recompute();
+                }
+                break;
         }
     }
 
@@ -252,7 +282,8 @@ public class DiagramViewModel : ObservableBase
                 Y = n.Y,
                 Label = n.Label,
                 W = n.ShapeWidth,
-                H = n.ShapeHeight
+                H = n.ShapeHeight,
+                Scale = n.Scale
             });
         }
 
@@ -300,6 +331,7 @@ public class DiagramViewModel : ObservableBase
         foreach (var nd in data.Nodes)
         {
             var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
+            node.Scale = nd.Scale > 0 ? nd.Scale : 1;
             map[nd.Id] = node;
         }
 

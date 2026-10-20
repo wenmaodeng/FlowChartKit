@@ -20,6 +20,7 @@ public sealed class NodeData
     public string Label { get; set; } = "";
     public double W { get; set; }
     public double H { get; set; }
+    public double Scale { get; set; } = 1;
 }
 
 public sealed class ConnectionData

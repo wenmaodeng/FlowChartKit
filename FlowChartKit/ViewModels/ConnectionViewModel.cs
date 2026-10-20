@@ -14,10 +14,6 @@ public class ConnectionViewModel : ObservableBase
     private bool _isSelected;
 
     private Point[] _points = Array.Empty<Point>();
-    private Point _arrowTip;
-    private Point _arrowBase1;
-    private Point _arrowBase2;
-    private bool _hasArrow;
 
     // 端点拖拽状态
     private bool _dragActive;
@@ -85,13 +81,11 @@ public class ConnectionViewModel : ObservableBase
     /// <summary>正交布线后的折线顶点（画布绝对坐标）。</summary>
     public Point[] Points { get => _points; private set => Set(ref _points, value); }
 
-    public Point ArrowTip { get => _arrowTip; private set => Set(ref _arrowTip, value); }
-    public Point ArrowBase1 { get => _arrowBase1; private set => Set(ref _arrowBase1, value); }
-    public Point ArrowBase2 { get => _arrowBase2; private set => Set(ref _arrowBase2, value); }
-    public bool HasArrow { get => _hasArrow; private set => Set(ref _hasArrow, value); }
-
     public ICommand SetDirectionCommand { get; }
     public ICommand DeleteCommand { get; }
+
+    /// <summary>外部（如部件改名）通知 <see cref="DisplayName"/> 需要重新求值。</summary>
+    internal void RaiseDisplayName() => Raise(nameof(DisplayName));
 
     public void SetEnd(bool isStart, NodeViewModel node, PortViewModel port)
     {
@@ -219,43 +213,5 @@ public class ConnectionViewModel : ObservableBase
 
         var pts = OrthogonalRouter.Route(sp, sDir, ep, eDir);
         Points = pts.Count >= 2 ? pts.ToArray() : Array.Empty<Point>();
-
-        ComputeArrow(pts);
-    }
-
-    private void ComputeArrow(List<Point> pts)
-    {
-        if (pts.Count < 2 || Direction == FlowMode.None)
-        {
-            HasArrow = false;
-            return;
-        }
-
-        Point tip, prev;
-        if (Direction == FlowMode.Forward)
-        {
-            tip = pts[^1];
-            prev = pts[^2];
-        }
-        else
-        {
-            tip = pts[0];
-            prev = pts[1];
-        }
-
-        var v = tip - prev;
-        if (v.LengthSquared < 0.01)
-        {
-            HasArrow = false;
-            return;
-        }
-        v.Normalize();
-        var back = tip - v * 10;
-        var n = new Vector(-v.Y, v.X);
-
-        ArrowTip = tip;
-        ArrowBase1 = back + n * 4.5;
-        ArrowBase2 = back - n * 4.5;
-        HasArrow = true;
     }
 }

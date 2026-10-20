@@ -40,6 +40,17 @@ public static class PortDirExtensions
     };
 }
 
+/// <summary>流路方向的默认显示名</summary>
+public static class FlowModeDefaults
+{
+    public static string DisplayName(FlowMode mode) => mode switch
+    {
+        FlowMode.Forward => "正向",
+        FlowMode.Reverse => "反向",
+        _ => "停止"
+    };
+}
+
 /// <summary>部件类型的默认显示名 / 尺寸 / 默认端口</summary>
 public static class NodeKindDefaults
 {

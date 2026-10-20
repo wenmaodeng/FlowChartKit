@@ -7,17 +7,24 @@ namespace FlowChartKit.ViewModels;
 /// <summary>流路图上的部件（样品杯、试剂瓶、注射泵等）。</summary>
 public class NodeViewModel : ObservableBase
 {
+    /// <summary>缩放系数下限。</summary>
+    public const double MinScale = 0.2;
+
+    /// <summary>缩放系数上限。</summary>
+    public const double MaxScale = 5.0;
+
     private double _x;
     private double _y;
     private string _label = "";
     private bool _isSelected;
+    private double _scale = 1;
 
     public NodeViewModel(NodeKind kind, string? label = null, double x = 0, double y = 0, string? id = null)
     {
         Kind = kind;
         Id = id ?? Guid.NewGuid().ToString("N");
         _label = string.IsNullOrWhiteSpace(label) ? NodeKindDefaults.DisplayName(kind) : label!;
-        (ShapeWidth, ShapeHeight) = NodeKindDefaults.Size(kind);
+        (BaseWidth, BaseHeight) = NodeKindDefaults.Size(kind);
         _x = x;
         _y = y;
         Ports = new ObservableCollection<PortViewModel>(CreateDefaultPorts(kind));
@@ -25,10 +32,34 @@ public class NodeViewModel : ObservableBase
 
     public string Id { get; }
     public NodeKind Kind { get; }
-    public double ShapeWidth { get; }
-    public double ShapeHeight { get; }
 
-    public string Label { get => _label; private set => Set(ref _label, value); }
+    /// <summary>该类型部件的默认宽高（未缩放）。</summary>
+    public double BaseWidth { get; }
+    public double BaseHeight { get; }
+
+    /// <summary>比例缩放系数：1 为原始尺寸，改动会联动 <see cref="ShapeWidth"/> / <see cref="ShapeHeight"/>。</summary>
+    public double Scale
+    {
+        get => _scale;
+        set
+        {
+            if (Set(ref _scale, Math.Clamp(value, MinScale, MaxScale)))
+            {
+                Raise(nameof(ShapeWidth));
+                Raise(nameof(ShapeHeight));
+            }
+        }
+    }
+
+    public double ShapeWidth => BaseWidth * _scale;
+    public double ShapeHeight => BaseHeight * _scale;
+
+    /// <summary>部件名称；可在属性窗口修改，改动会即时刷新画布显示。</summary>
+    public string Label
+    {
+        get => _label;
+        set => Set(ref _label, value ?? "");
+    }
 
     public double X { get => _x; set => Set(ref _x, value); }
     public double Y { get => _y; set => Set(ref _y, value); }

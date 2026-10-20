@@ -83,10 +83,6 @@ public class PipeControl : Control
         {
             case nameof(ConnectionViewModel.Points):
             case nameof(ConnectionViewModel.IsSelected):
-            case nameof(ConnectionViewModel.HasArrow):
-            case nameof(ConnectionViewModel.ArrowTip):
-            case nameof(ConnectionViewModel.ArrowBase1):
-            case nameof(ConnectionViewModel.ArrowBase2):
                 InvalidateVisual();
                 break;
             case nameof(ConnectionViewModel.Direction):
@@ -155,20 +151,6 @@ public class PipeControl : Control
         }
         geo.Freeze();
         dc.DrawGeometry(null, pen, geo);
-
-        // 流向箭头
-        if (vm.HasArrow)
-        {
-            var arrow = new StreamGeometry();
-            using (var ctx = arrow.Open())
-            {
-                ctx.BeginFigure(vm.ArrowTip, true, true);
-                ctx.LineTo(vm.ArrowBase1, true, false);
-                ctx.LineTo(vm.ArrowBase2, true, false);
-            }
-            arrow.Freeze();
-            dc.DrawGeometry(brush, null, arrow);
-        }
 
         // 端点手柄（仅编辑模式可见）
         if (vm.Diagram.IsEditable)
