@@ -35,6 +35,9 @@ public class FlowNodeControl : Control
     private FormattedText? _labelText;
     private double _labelTextDpi = -1;
 
+    // 宿主 ItemsControl 的 Canvas 面板缓存：可视树祖先不变，无需每次鼠标事件都遍历
+    private Canvas? _itemsCanvas;
+
     static FlowNodeControl()
     {
         FocusableProperty.OverrideMetadata(typeof(FlowNodeControl),
@@ -234,7 +237,7 @@ public class FlowNodeControl : Control
         diagram.SelectedNode = _vm;
         Focus();
 
-        var canvas = FindItemsCanvas();
+        var canvas = GetItemsCanvas();
         _dragStartCanvas = e.GetPosition(canvas);
         _origX = _vm.X;
         _origY = _vm.Y;
@@ -247,7 +250,7 @@ public class FlowNodeControl : Control
     {
         base.OnMouseMove(e);
         if (!_dragging || !IsMouseCaptured || _vm is null) return;
-        var canvas = FindItemsCanvas();
+        var canvas = GetItemsCanvas();
         var p = e.GetPosition(canvas);
 
         double nx = _origX + p.X - _dragStartCanvas.X;
@@ -273,12 +276,19 @@ public class FlowNodeControl : Control
         }
     }
 
-    private Canvas FindItemsCanvas()
+    /// <summary>缓存解析宿主 Canvas；容器一旦生成其可视树祖先不会变化。</summary>
+    private Canvas GetItemsCanvas()
     {
+        if (_itemsCanvas != null) return _itemsCanvas;
+
         DependencyObject? d = this;
         while (d != null)
         {
-            if (d is Canvas c) return c;
+            if (d is Canvas c)
+            {
+                _itemsCanvas = c;
+                return c;
+            }
             d = VisualTreeHelper.GetParent(d);
         }
         return null!;

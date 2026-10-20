@@ -308,6 +308,28 @@ public class DiagramViewModel : ObservableBase
     public PortViewModel? FindPort(NodeViewModel node, string portId)
         => node.Ports.FirstOrDefault(p => p.Id == portId);
 
+    // ---- 端点拖拽编排（由管路控件驱动，吸附/高亮/重算集中在这里） ----
+
+    /// <summary>开始拖动管路某端端点。</summary>
+    public void BeginConnectionEndpointDrag(ConnectionViewModel conn, bool isStart, Point mousePos)
+        => conn.BeginEndpointDrag(isStart, mousePos);
+
+    /// <summary>拖动中：查找最近端口、更新吸附高亮并刷新折线。</summary>
+    public void UpdateConnectionEndpointDrag(ConnectionViewModel conn, bool isStart, Point pos)
+    {
+        var opposite = isStart ? conn.TargetPort : conn.SourcePort;
+        var (snap, _) = FindNearestPort(pos, opposite);
+        SetSnapHighlight(snap);
+        conn.UpdateDragPoint(pos, snap);
+    }
+
+    /// <summary>结束拖动：落点提交（吸附到端口或成为自由端）并清除吸附高亮。</summary>
+    public void EndConnectionEndpointDrag(ConnectionViewModel conn)
+    {
+        conn.EndEndpointDrag();
+        SetSnapHighlight(null);
+    }
+
     // ---- 序列化 ----
 
     public DiagramData ToData()

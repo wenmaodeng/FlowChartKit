@@ -5,8 +5,10 @@ namespace FlowChartKit.Data;
 /// <summary>
 /// 内置示例流路图：一台进样注射泵 + 多通阀，外接样品/洗针/比色/废液/反应/离心位与 8 个试剂瓶。
 /// 供画布控件在无存档文件时生成初始布局（右键菜单"恢复示例"也走这里）。
+/// internal —— 不作为库的公共 API 暴露；如需彻底从库中移除示例数据，
+/// 应先为控件引入 IDemoLayoutProvider 式注入点再迁出本程序集。
 /// </summary>
-public static class DemoLayout
+internal static class DemoLayout
 {
     /// <summary>向已有图实例填充示例内容（不清空，调用方需自行 <c>Clear()</c>）。</summary>
     public static void Build(DiagramViewModel d)

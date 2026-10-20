@@ -90,10 +90,7 @@ public class PipeControl : Control
         if (_vm != null)
         {
             _vm.PropertyChanged += OnVmPropertyChanged;
-            _diagram = _vm.Diagram;
-            _diagram.PropertyChanged += OnDiagramPropertyChanged;
-            Width = _diagram.CanvasWidth;
-            Height = _diagram.CanvasHeight;
+            EnsureDiagramHook();
             RebuildGeometry();
             UpdateFlowAnimation();
         }
@@ -105,6 +102,42 @@ public class PipeControl : Control
             BeginAnimation(DashOffsetProperty, null);
         }
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 挂上图模型的属性通知（编号开关）并同步占位尺寸。
+    /// DataContextChanged 时控件可能尚未插入可视树，找不到祖先 ItemsControl，
+    /// 所以解析失败时在 OnRender 中幂等重试（与 FlowNodeControl.EnsureDiagramHook 同理）。
+    /// </summary>
+    private void EnsureDiagramHook()
+    {
+        if (_vm is null) return;
+        var diagram = FindAncestorDiagram();
+        if (diagram == _diagram) return;
+
+        if (_diagram != null)
+            _diagram.PropertyChanged -= OnDiagramPropertyChanged;
+
+        _diagram = diagram;
+
+        if (_diagram != null)
+        {
+            _diagram.PropertyChanged += OnDiagramPropertyChanged;
+            Width = _diagram.CanvasWidth;
+            Height = _diagram.CanvasHeight;
+        }
+    }
+
+    /// <summary>沿可视树向上找 ItemsControl，取其 DataContext 作为所属图模型。</summary>
+    private DiagramViewModel? FindAncestorDiagram()
+    {
+        DependencyObject? d = this;
+        while (d != null)
+        {
+            if (d is ItemsControl ic) return ic.DataContext as DiagramViewModel;
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -224,6 +257,7 @@ public class PipeControl : Control
         var vm = _vm;
         var geo = _geometry;
         if (vm is null || geo is null) return;
+        EnsureDiagramHook();
         var pts = vm.Points;
 
         bool selected = vm.IsSelected;
@@ -243,14 +277,14 @@ public class PipeControl : Control
         dc.DrawGeometry(null, pen, geo);
 
         // 端点手柄（仅编辑模式可见）
-        if (vm.Diagram.IsEditable)
+        if (_diagram?.IsEditable == true)
         {
             dc.DrawEllipse(Brushes.White, HandlePen, pts[0], 5, 5);
             dc.DrawEllipse(Brushes.White, HandlePen, pts[^1], 5, 5);
         }
 
         // 编号徽章（按 ShowNumbers 开关）—— 位于折线长度中点处（中点在重建几何时算好）
-        if (vm.Diagram.ShowNumbers)
+        if (_diagram?.ShowNumbers == true)
         {
             var center = _badgeCenter;
             dc.DrawEllipse(Brushes.White, selected ? BadgePenSelected : BadgePen, center, 11, 11);
@@ -282,24 +316,27 @@ public class PipeControl : Control
         base.OnMouseLeftButtonDown(e);
         var vm = _vm;
         if (vm is null) return;
+        // 首次交互可能早于首次渲染，这里幂等补齐图模型挂钩
+        EnsureDiagramHook();
 
         var p = e.GetPosition(this);
         bool nearStart = EndpointNear(p, true);
         bool nearEnd = EndpointNear(p, false);
 
-        if (vm.Diagram.IsEditable && (nearStart || nearEnd))
+        if (_diagram?.IsEditable == true && (nearStart || nearEnd))
         {
             e.Handled = true;
             _draggingEndpoint = true;
             _dragIsStart = nearStart;
             CaptureMouse();
             Focus();
-            vm.BeginEndpointDrag(_dragIsStart, p);
+            _diagram.BeginConnectionEndpointDrag(vm, _dragIsStart, p);
             return;
         }
 
         e.Handled = true;
-        vm.Diagram.SelectedConnection = vm;
+        if (_diagram is { } diagram)
+            diagram.SelectedConnection = vm;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -307,10 +344,7 @@ public class PipeControl : Control
         base.OnMouseMove(e);
         if (!_draggingEndpoint || !IsMouseCaptured || _vm is null) return;
         var p = e.GetPosition(this);
-        var opposite = _dragIsStart ? _vm.TargetPort : _vm.SourcePort;
-        var (snap, pos) = _vm.Diagram.FindNearestPort(p, opposite);
-        _vm.Diagram.SetSnapHighlight(snap);
-        _vm.UpdateDragPoint(p, snap);
+        _diagram?.UpdateConnectionEndpointDrag(_vm, _dragIsStart, p);
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -319,8 +353,7 @@ public class PipeControl : Control
         if (_draggingEndpoint)
         {
             _draggingEndpoint = false;
-            _vm?.EndEndpointDrag();
-            _vm?.Diagram.SetSnapHighlight(null);
+            if (_vm is { } conn) _diagram?.EndConnectionEndpointDrag(conn);
             if (IsMouseCaptured) ReleaseMouseCapture();
         }
     }

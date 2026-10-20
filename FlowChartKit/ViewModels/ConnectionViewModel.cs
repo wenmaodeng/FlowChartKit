@@ -5,7 +5,12 @@ using FlowChartKit.Routing;
 
 namespace FlowChartKit.ViewModels;
 
-/// <summary>管路连线。两端可以接到部件端口，也可以是自由点（可再拖动吸附到端口）。</summary>
+/// <summary>
+/// 管路连线。两端可以接到部件端口，也可以是自由点（可再拖动吸附到端口）。
+/// 反向持有所属图模型仅为内部记账（索引维护、删除命令），不再对外暴露；
+/// 端点拖拽编排由 <see cref="DiagramViewModel"/> 的 BeginConnectionEndpointDrag/
+/// UpdateConnectionEndpointDrag/EndConnectionEndpointDrag 统一驱动。
+/// </summary>
 public class ConnectionViewModel : ObservableBase
 {
     private readonly DiagramViewModel _diagram;
@@ -72,8 +77,6 @@ public class ConnectionViewModel : ObservableBase
     public PortViewModel? TargetPort { get; internal set; }
     public Point? FreeTarget { get; internal set; }
 
-    public DiagramViewModel Diagram => _diagram;
-
     public FlowMode Direction { get => _direction; set { if (Set(ref _direction, value)) Recompute(); } }
 
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
@@ -129,7 +132,7 @@ public class ConnectionViewModel : ObservableBase
         Recompute();
     }
 
-    // ---- 端点拖拽（由编辑器控件驱动） ----
+    // ---- 端点拖拽状态操作（编排入口见 DiagramViewModel 的端点拖拽编排方法） ----
 
     internal void BeginEndpointDrag(bool isStart, Point mousePos)
     {

@@ -40,7 +40,11 @@ public class MainViewModel : ObservableBase
     public int Number
     {
         get => _number;
-        set => Set(ref _number, value);
+        set
+        {
+            if (Set(ref _number, value))
+                ApplyCommand.RaiseCanExecuteChanged();
+        }
     }
 
     /// <summary>目标流向。</summary>
@@ -64,7 +68,7 @@ public class MainViewModel : ObservableBase
     }
 
     /// <summary>按当前编号与方向发出设置流向请求。</summary>
-    public ICommand ApplyCommand { get; }
+    public RelayCommand ApplyCommand { get; }
 
     private void Execute()
     {
