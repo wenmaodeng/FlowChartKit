@@ -1,5 +1,4 @@
 using FlowChartKit.Data;
-using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
 
@@ -41,28 +40,4 @@ public sealed class JsonDiagramLayoutStore : IDiagramLayoutStore
 
     public Task SaveAsync(DiagramData data, string path, CancellationToken ct = default)
         => DiagramSerializer.SaveAsync(data, path, ct);
-}
-
-/// <summary>
-/// 示例布局提供者：当无存档文件（或存档解析失败）以及用户点击"恢复示例"时，
-/// 控件用此接口生成初始流路图。默认实现为 <see cref="DefaultDemoLayoutProvider"/>，
-/// 内部调用核心库内置的 <see cref="DemoLayout"/>；宿主可替换为空实现（禁用内置示例）
-/// 或自定义布局，从而无需在宿主侧维护示例数据、完全解耦核心库的 DemoLayout 技术债。
-/// </summary>
-public interface IDemoLayoutProvider
-{
-    /// <summary>清空图并填充示例内容。</summary>
-    void Build(DiagramViewModel diagram);
-}
-
-/// <summary>默认示例布局：委托给核心库内置的 <see cref="DemoLayout.Build"/>。</summary>
-internal sealed class DefaultDemoLayoutProvider : IDemoLayoutProvider
-{
-    public void Build(DiagramViewModel diagram) => DemoLayout.Build(diagram);
-}
-
-/// <summary>空实现示例布局提供者：不填充任何内容，让图保持空白（BuildDemo 已先 Clear）。</summary>
-public sealed class EmptyDemoLayoutProvider : IDemoLayoutProvider
-{
-    public void Build(DiagramViewModel diagram) { }
 }

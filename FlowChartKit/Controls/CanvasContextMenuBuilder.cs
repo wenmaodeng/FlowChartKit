@@ -44,7 +44,6 @@ internal static class CanvasContextMenuBuilder
         menu.Items.Add(new Separator());
         menu.Items.Add(NewEditableItem(host));
         menu.Items.Add(NewItem("保存布局", host.SaveLayoutCommand, null));
-        menu.Items.Add(NewItem("恢复示例", host.ResetDemoCommand, null));
     }
 
     private static MenuItem NewItem(string header, ICommand command, object? parameter)

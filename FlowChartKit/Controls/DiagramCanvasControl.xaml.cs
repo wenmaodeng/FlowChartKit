@@ -54,9 +54,6 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>布局读写存储；默认 JSON 文件，宿主可注入自定义实现。</summary>
     public IDiagramLayoutStore LayoutStore { get; set; } = new JsonDiagramLayoutStore();
 
-    /// <summary>示例布局提供者；宿主可替换为空实现（不填充示例）或自定义布局。</summary>
-    public IDemoLayoutProvider DemoLayoutProvider { get; set; } = new DefaultDemoLayoutProvider();
-
     public DiagramCanvasControl()
     {
         // 先创建内置图模型，再加载 XAML，保证内部绑定首次求值即可拿到实例
@@ -65,7 +62,6 @@ public partial class DiagramCanvasControl : UserControl
         // 直接改 Diagram.IsEditable 时回写到依赖属性，保证外部绑定同步
         diagram.PropertyChanged += OnDiagramPropertyChanged;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
-        ResetDemoCommand = new RelayCommand(_ => ResetToDemo());
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
@@ -107,9 +103,6 @@ public partial class DiagramCanvasControl : UserControl
 
     /// <summary>保存当前布局到 <see cref="EffectiveLayoutFilePath"/>（右键菜单）。</summary>
     public ICommand SaveLayoutCommand { get; }
-
-    /// <summary>重建内置示例布局（右键菜单）。</summary>
-    public ICommand ResetDemoCommand { get; }
 
     /// <summary>弹出属性窗口，显示当前选中部件或管路的属性（右键菜单）。</summary>
     public ICommand ShowPropertiesCommand { get; }
@@ -158,18 +151,17 @@ public partial class DiagramCanvasControl : UserControl
         catch { /* 载入失败由 LoadLayoutAsync 内部处理，此处吞掉 async void 的未观察异常 */ }
     }
 
-    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在或解析失败时回退到示例布局。</summary>
+    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在或解析失败时图保持空白。</summary>
     private async Task LoadLayoutAsync()
     {
         try
         {
             var data = await LayoutStore.LoadAsync(EffectiveLayoutFilePath);
-            if (data is null) BuildDemo();
-            else Diagram.Load(data);
+            if (data is not null) Diagram.Load(data);
         }
         catch
         {
-            BuildDemo();
+            // 载入失败时图保持空白（已清空），宿主可通过 Save 生成新布局
         }
     }
 
@@ -185,18 +177,6 @@ public partial class DiagramCanvasControl : UserControl
         {
             StatusChanged?.Invoke($"保存失败：{ex.Message}");
         }
-    }
-
-    private void ResetToDemo()
-    {
-        BuildDemo();
-        StatusChanged?.Invoke("已恢复示例布局");
-    }
-
-    private void BuildDemo()
-    {
-        Diagram.Clear();
-        DemoLayoutProvider.Build(Diagram);
     }
 
     private void AddNode(object? parameter)
