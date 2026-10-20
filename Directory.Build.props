@@ -4,8 +4,7 @@
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <!-- Avalonia 项目历史上有意未开 ImplicitUsings，沿用其现状，不在此强制 -->
-    <ImplicitUsings Condition="'$(MSBuildProjectName)' != 'FlowChartKit.Avalonia'">enable</ImplicitUsings>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
 </Project>

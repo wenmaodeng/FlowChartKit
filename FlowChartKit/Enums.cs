@@ -12,7 +12,8 @@ public enum NodeKind
     Cuvette,       // 比色皿
     Centrifuge,    // 离心位
     NeedleWash,    // 洗针位
-    PumpModule     // 注射泵 + 多通阀
+    PumpModule,    // 注射泵 + 多通阀
+    ThreeWayValve  // 三通阀
 }
 
 /// <summary>端口出口方向</summary>

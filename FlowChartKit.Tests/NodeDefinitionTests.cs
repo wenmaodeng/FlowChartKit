@@ -75,6 +75,17 @@ public class NodeDefinitionTests
     }
 
     [Fact]
+    public void ThreeWayValve_HasThreePorts()
+    {
+        var node = new NodeViewModel(NodeKind.ThreeWayValve);
+
+        Assert.Equal("三通阀", node.Label);
+        Assert.Equal(3, node.Ports.Count);
+        Assert.Equal(["L", "R", "B"], node.Ports.Select(p => p.Id).ToArray());
+        Assert.Equal([PortDir.Left, PortDir.Right, PortDir.Down], node.Ports.Select(p => p.Dir).ToArray());
+    }
+
+    [Fact]
     public void PumpModule_HasNineDedicatedPorts()
     {
         var def = NodeDefinitionRegistry.Resolve(NodeKind.PumpModule);

@@ -1,16 +1,6 @@
 <Solution>
   <Project Path="FlowChartKit.Tests/FlowChartKit.Tests.csproj" />
   <Project Path="FlowChartKit/FlowChartKit.csproj" />
-  <Folder Name="/FlowChartKit.Avalonia/">
-    <Project Path="FlowChartKit.Avalonia/FlowChartKit.Avalonia.Android/FlowChartKit.Avalonia.Android.csproj">
-      <Deploy />
-    </Project>
-    <Project Path="FlowChartKit.Avalonia/FlowChartKit.Avalonia.Browser/FlowChartKit.Avalonia.Browser.csproj" />
-    <Project Path="FlowChartKit.Avalonia/FlowChartKit.Avalonia.Desktop/FlowChartKit.Avalonia.Desktop.csproj" />
-    <Project Path="FlowChartKit.Avalonia/FlowChartKit.Avalonia.iOS/FlowChartKit.Avalonia.iOS.csproj">
-      <Deploy />
-    </Project>
-    <Project Path="FlowChartKit.Avalonia/FlowChartKit.Avalonia/FlowChartKit.Avalonia.csproj" />
-  </Folder>
+
   <Project Path="FlowChartKit.Demo/FlowChartKit.Demo.csproj" />
 </Solution>

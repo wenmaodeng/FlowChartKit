@@ -51,6 +51,7 @@ public static class NodeDefinitionRegistry
             [NodeKind.Centrifuge] = new CentrifugeDefinition(),
             [NodeKind.NeedleWash] = new NeedleWashDefinition(),
             [NodeKind.PumpModule] = new PumpModuleDefinition(),
+            [NodeKind.ThreeWayValve] = new ThreeWayValveDefinition(),
         };
 
     // 自定义覆盖层：宿主注册/注销只作用于此层
