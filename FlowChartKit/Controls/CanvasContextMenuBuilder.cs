@@ -34,8 +34,9 @@ internal static class CanvasContextMenuBuilder
         else
         {
             var addNode = new MenuItem { Header = "添加部件" };
-            foreach (var kind in Enum.GetValues<NodeKind>())
-                addNode.Items.Add(NewItem(NodeDefinitionRegistry.Resolve(kind).DisplayName, host.AddNodeCommand, kind));
+            // 枚举注册表当前生效的定义（内置 + 宿主自定义），而非仅枚举值
+            foreach (var def in NodeDefinitionRegistry.All)
+                addNode.Items.Add(NewItem(def.DisplayName, host.AddNodeCommand, def.Kind));
             menu.Items.Add(addNode);
             menu.Items.Add(NewItem("添加管路", host.AddConnectionCommand, null));
         }

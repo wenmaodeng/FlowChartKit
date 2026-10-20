@@ -70,4 +70,16 @@ public static class NodeDefinitionRegistry
             : s_builtIns.TryGetValue(kind, out var b)
                 ? b
                 : throw new InvalidOperationException($"部件类型 {kind} 没有注册的部件定义");
+
+    /// <summary>当前生效的全部定义快照：内置定义与自定义覆盖的并集（同类型时自定义优先），供菜单等枚举场景使用。</summary>
+    public static IReadOnlyCollection<INodeDefinition> All
+    {
+        get
+        {
+            var map = new Dictionary<NodeKind, INodeDefinition>(s_builtIns);
+            foreach (var kv in s_overrides)
+                map[kv.Key] = kv.Value;
+            return map.Values.ToList();
+        }
+    }
 }

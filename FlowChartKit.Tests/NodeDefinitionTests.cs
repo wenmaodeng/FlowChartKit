@@ -125,6 +125,34 @@ public class NodeDefinitionTests
         => Assert.Throws<InvalidOperationException>(
             () => NodeDefinitionRegistry.Resolve((NodeKind)int.MaxValue));
 
+    [Fact]
+    public void All_MergesBuiltInsAndOverrides()
+    {
+        var builtInCount = Enum.GetValues<NodeKind>().Length;
+        Assert.Equal(builtInCount, NodeDefinitionRegistry.All.Count);
+
+        var customKind = (NodeKind)1001; // 枚举之外的自定义类型
+        var custom = new TestDefinition(customKind, "自定义", (10, 10),
+            [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
+        var wasteOverride = new TestDefinition(NodeKind.Waste, "覆盖废液", (10, 10),
+            [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
+        try
+        {
+            NodeDefinitionRegistry.Register(custom);
+            NodeDefinitionRegistry.Register(wasteOverride);
+
+            var all = NodeDefinitionRegistry.All;
+            Assert.Equal(builtInCount + 1, all.Count); // 新类型 +1；同类型覆盖不增量
+            Assert.Contains(all, d => ReferenceEquals(d, custom));
+            Assert.DoesNotContain(all, d => d.Kind == NodeKind.Waste && !ReferenceEquals(d, wasteOverride));
+        }
+        finally
+        {
+            NodeDefinitionRegistry.Unregister(customKind);
+            NodeDefinitionRegistry.Unregister(NodeKind.Waste);
+        }
+    }
+
     private sealed class TestDefinition(
         NodeKind kind, string displayName, (double W, double H) baseSize, IReadOnlyList<PortSpec> ports)
         : INodeDefinition
