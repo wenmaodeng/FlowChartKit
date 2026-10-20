@@ -57,12 +57,23 @@ public static class NodeDefinitionRegistry
     // 自定义覆盖层：宿主注册/注销只作用于此层
     private static readonly ConcurrentDictionary<NodeKind, INodeDefinition> s_overrides = new();
 
+    // All 属性的缓存快照；注册/注销时标记为 null 以触发重建
+    private static volatile IReadOnlyCollection<INodeDefinition>? s_cachedAll;
+
     /// <summary>注册（或覆盖）某部件类型的自定义定义，优先于内置定义生效。</summary>
     public static void Register(INodeDefinition definition)
-        => s_overrides[(definition ?? throw new ArgumentNullException(nameof(definition))).Kind] = definition;
+    {
+        s_overrides[(definition ?? throw new ArgumentNullException(nameof(definition))).Kind] = definition;
+        s_cachedAll = null;
+    }
 
     /// <summary>移除某类型的自定义定义并回退到内置定义。返回是否真的移除了自定义定义。</summary>
-    public static bool Unregister(NodeKind kind) => s_overrides.TryRemove(kind, out _);
+    public static bool Unregister(NodeKind kind)
+    {
+        bool removed = s_overrides.TryRemove(kind, out _);
+        if (removed) s_cachedAll = null;
+        return removed;
+    }
 
     /// <summary>按类型解析定义：自定义覆盖优先，其次内置定义；两者皆无（未知枚举值）时抛 <see cref="InvalidOperationException"/>。</summary>
     public static INodeDefinition Resolve(NodeKind kind)
@@ -72,15 +83,20 @@ public static class NodeDefinitionRegistry
                 ? b
                 : throw new InvalidOperationException($"部件类型 {kind} 没有注册的部件定义");
 
-    /// <summary>当前生效的全部定义快照：内置定义与自定义覆盖的并集（同类型时自定义优先），供菜单等枚举场景使用。</summary>
+    /// <summary>当前生效的全部定义快照：内置定义与自定义覆盖的并集（同类型时自定义优先），供菜单等枚举场景使用。
+    /// 注册/注销时自动失效重建；注册频率远低于枚举频率，缓存有效。</summary>
     public static IReadOnlyCollection<INodeDefinition> All
     {
         get
         {
+            var cached = s_cachedAll;
+            if (cached != null) return cached;
             var map = new Dictionary<NodeKind, INodeDefinition>(s_builtIns);
             foreach (var kv in s_overrides)
                 map[kv.Key] = kv.Value;
-            return map.Values.ToList();
+            cached = map.Values.ToList();
+            s_cachedAll = cached;
+            return cached;
         }
     }
 }

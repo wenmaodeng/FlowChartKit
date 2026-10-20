@@ -31,16 +31,6 @@ public class ConnectionViewModel : ObservableBase
         _diagram = diagram;
         Id = id ?? Guid.NewGuid().ToString("N");
 
-        SetDirectionCommand = new RelayCommand(p =>
-        {
-            Direction = p switch
-            {
-                FlowMode f => f,
-                string s => Enum.TryParse<FlowMode>(s, true, out var fm) ? fm : Direction,
-                _ => Direction
-            };
-        });
-
         DeleteCommand = new RelayCommand(_ => _diagram.RemoveConnection(this));
     }
 
@@ -87,11 +77,10 @@ public class ConnectionViewModel : ObservableBase
     /// <summary>正交布线后的折线顶点（画布绝对坐标）。</summary>
     public Point[] Points { get => _points; private set => Set(ref _points, value); }
 
-    public ICommand SetDirectionCommand { get; }
-    public ICommand DeleteCommand { get; }
-
     /// <summary>外部（如部件改名）通知 <see cref="DisplayName"/> 需要重新求值。</summary>
     internal void RaiseDisplayName() => Raise(nameof(DisplayName));
+
+    public ICommand DeleteCommand { get; }
 
     public void SetEnd(bool isStart, NodeViewModel node, PortViewModel port)
     {

@@ -99,7 +99,7 @@ public partial class PropertiesDialog : Window
         return "未连接";
     }
 
-    /// <summary>流向下拉框：改动直接走 ConnectionViewModel.SetDirectionCommand。</summary>
+    /// <summary>流向下拉框：改动直接赋值 ConnectionViewModel.Direction。</summary>
     private void AddDirection(ConnectionViewModel connection)
     {
         var box = new ComboBox { Padding = new Thickness(4, 3, 4, 3) };
@@ -121,7 +121,7 @@ public partial class PropertiesDialog : Window
         box.SelectionChanged += (_, _) =>
         {
             if (box.SelectedItem is ComboBoxItem { Tag: FlowMode mode })
-                connection.SetDirectionCommand.Execute(mode);
+                connection.Direction = mode; // 直接赋值 Direction setter 会触发 Recompute()
         };
 
         AddRow("流向", box);

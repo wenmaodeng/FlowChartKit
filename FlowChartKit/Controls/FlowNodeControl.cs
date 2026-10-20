@@ -233,11 +233,13 @@ public class FlowNodeControl : Control
         if (_vm is null) return;
         if (Diagram is not { IsEditable: true } diagram) return;
 
+        var canvas = GetItemsCanvas();
+        if (canvas is null) return; // 可视树未就绪或不在画布内，跳过拖拽
+
         e.Handled = true;
         diagram.SelectedNode = _vm;
         Focus();
 
-        var canvas = GetItemsCanvas();
         _dragStartCanvas = e.GetPosition(canvas);
         _origX = _vm.X;
         _origY = _vm.Y;
@@ -251,6 +253,8 @@ public class FlowNodeControl : Control
         base.OnMouseMove(e);
         if (!_dragging || !IsMouseCaptured || _vm is null) return;
         var canvas = GetItemsCanvas();
+        if (canvas is null) return;
+
         var p = e.GetPosition(canvas);
 
         double nx = _origX + p.X - _dragStartCanvas.X;
@@ -276,8 +280,12 @@ public class FlowNodeControl : Control
         }
     }
 
-    /// <summary>缓存解析宿主 Canvas；容器一旦生成其可视树祖先不会变化。</summary>
-    private Canvas GetItemsCanvas()
+    /// <summary>
+    /// 缓存解析宿主 Canvas；容器一旦生成其可视树祖先不会变化，
+    /// 但只缓存成功解析的结果——缓存 null 会导致后续每次都重新遍历。
+    /// 找不到时返回 null（而非强转非空），调用方负责在 null 时跳过拖拽。
+    /// </summary>
+    private Canvas? GetItemsCanvas()
     {
         if (_itemsCanvas != null) return _itemsCanvas;
 
@@ -291,7 +299,7 @@ public class FlowNodeControl : Control
             }
             d = VisualTreeHelper.GetParent(d);
         }
-        return null!;
+        return null;
     }
 
     private static Brush CreateBrush(byte r, byte g, byte b)

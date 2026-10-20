@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -65,33 +66,28 @@ public static class NodeRenderer
     public static void RenderPortHighlight(DrawingContext dc, double cx, double cy)
         => dc.DrawEllipse(null, HighlightPen, new Point(cx, cy), 8, 8);
 
-    // 路径数据都是编译期常量：解析一次并冻结，跨部件实例复用，避免每次渲染重新 Parse（仅 UI 线程访问）
-    private static readonly Dictionary<string, Geometry> s_pathCache = new();
+    // 路径数据都是编译期常量：解析一次并冻结，跨部件实例复用，避免每次渲染重新 Parse
+    // 用 ConcurrentDictionary 是为了将来若有后台预渲染也能安全访问（UI 线程渲染为主，非必需但更稳妥）
+    private static readonly ConcurrentDictionary<string, Geometry> s_pathCache = new();
 
     private static Geometry CachedPath(string data)
     {
-        if (!s_pathCache.TryGetValue(data, out var geo))
-        {
-            geo = Geometry.Parse(data);
-            geo.Freeze();
-            s_pathCache[data] = geo;
-        }
-        return geo;
+        if (s_pathCache.TryGetValue(data, out var geo)) return geo;
+        geo = Geometry.Parse(data);
+        geo.Freeze();
+        return s_pathCache.GetOrAdd(data, geo);
     }
 
     // 圆角矩形参数同样是编译期常量：按参数缓存并冻结，与 CachedPath 同理
-    private static readonly Dictionary<(double X, double Y, double W, double H, double R), Geometry> s_roundRectCache = new();
+    private static readonly ConcurrentDictionary<(double X, double Y, double W, double H, double R), Geometry> s_roundRectCache = new();
 
     private static Geometry CachedRoundRect(double x, double y, double w, double h, double r)
     {
         var key = (x, y, w, h, r);
-        if (!s_roundRectCache.TryGetValue(key, out var geo))
-        {
-            geo = new RectangleGeometry(new Rect(x, y, w, h), r, r);
-            geo.Freeze();
-            s_roundRectCache[key] = geo;
-        }
-        return geo;
+        if (s_roundRectCache.TryGetValue(key, out var geo)) return geo;
+        geo = new RectangleGeometry(new Rect(x, y, w, h), r, r);
+        geo.Freeze();
+        return s_roundRectCache.GetOrAdd(key, geo);
     }
 
     internal static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)

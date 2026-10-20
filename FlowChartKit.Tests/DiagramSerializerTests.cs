@@ -58,6 +58,40 @@ public class DiagramSerializerTests
     }
 
     [Fact]
+    public void Load_CorruptedJsonFile_ReturnsNull()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"flowchart-corrupted-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, "{ this is not valid json at all [");
+
+            var result = DiagramSerializer.Load(path);
+            Assert.Null(result); // 损坏 JSON 不应抛异常
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsync_CorruptedJsonFile_ReturnsNull()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"flowchart-corrupted-async-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path, "{ this is not valid json at all [");
+
+            var result = await DiagramSerializer.LoadAsync(path);
+            Assert.Null(result); // 损坏 JSON 不应抛异常
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void SaveLoad_FileRoundTrip()
     {
         var d = new DiagramViewModel(640, 480);

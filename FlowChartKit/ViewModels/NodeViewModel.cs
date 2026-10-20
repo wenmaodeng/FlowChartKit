@@ -68,12 +68,16 @@ public class NodeViewModel : ObservableBase
     /// 与 <see cref="ObservableBase.PropertyChanged"/> 的区别：拖动过程中 X、Y 分开赋值只算一次。</summary>
     public event Action<NodeViewModel>? GeometryChanged;
 
+    /// <summary>部件 X 坐标。单独赋值即触发一次 <see cref="GeometryChanged"/>。
+    /// 若需同时改 X/Y，请使用 <see cref="MoveTo"/> 以避免两次重算。</summary>
     public double X
     {
         get => _x;
         set { if (Set(ref _x, value)) GeometryChanged?.Invoke(this); }
     }
 
+    /// <summary>部件 Y 坐标。单独赋值即触发一次 <see cref="GeometryChanged"/>。
+    /// 若需同时改 X/Y，请使用 <see cref="MoveTo"/> 以避免两次重算。</summary>
     public double Y
     {
         get => _y;

@@ -62,7 +62,7 @@ public static class OrthogonalRouter
         var result = new List<Point>();
         foreach (var p in pts)
         {
-            if (result.Count == 0 || Distance(result[^1], p) > 0.5)
+            if (result.Count == 0 || DistanceSquared(result[^1], p) > 0.25) // 0.5²，避免开方
                 result.Add(p);
         }
         for (int i = result.Count - 2; i >= 1; i--)
@@ -73,8 +73,11 @@ public static class OrthogonalRouter
         return result;
     }
 
-    private static double Distance(Point a, Point b)
-        => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+    private static double DistanceSquared(Point a, Point b)
+    {
+        double dx = a.X - b.X, dy = a.Y - b.Y;
+        return dx * dx + dy * dy;
+    }
 
     private static bool IsCollinear(Point a, Point b, Point c)
         => (Math.Abs(a.Y - b.Y) < 0.01 && Math.Abs(b.Y - c.Y) < 0.01)

@@ -27,7 +27,11 @@ public static class DiagramSerializer
         => File.WriteAllText(path, ToJson(data));
 
     public static DiagramData? Load(string path)
-        => File.Exists(path) ? FromJson(File.ReadAllText(path)) : null;
+    {
+        if (!File.Exists(path)) return null;
+        try { return FromJson(File.ReadAllText(path)); }
+        catch { return null; }
+    }
 
     /// <summary>异步写入，避免大布局阻塞 UI 线程。</summary>
     public static async Task SaveAsync(DiagramData data, string path, CancellationToken ct = default)
@@ -35,5 +39,13 @@ public static class DiagramSerializer
 
     /// <summary>异步读取；路径不存在时返回 null。</summary>
     public static async Task<DiagramData?> LoadAsync(string path, CancellationToken ct = default)
-        => File.Exists(path) ? FromJson(await File.ReadAllTextAsync(path, ct).ConfigureAwait(false)) : null;
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            var json = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
+            return FromJson(json);
+        }
+        catch { return null; }
+    }
 }

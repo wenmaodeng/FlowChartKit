@@ -54,6 +54,9 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>布局读写存储；默认 JSON 文件，宿主可注入自定义实现。</summary>
     public IDiagramLayoutStore LayoutStore { get; set; } = new JsonDiagramLayoutStore();
 
+    /// <summary>示例布局提供者；宿主可替换为空实现（不填充示例）或自定义布局。</summary>
+    public IDemoLayoutProvider DemoLayoutProvider { get; set; } = new DefaultDemoLayoutProvider();
+
     public DiagramCanvasControl()
     {
         // 先创建内置图模型，再加载 XAML，保证内部绑定首次求值即可拿到实例
@@ -128,21 +131,31 @@ public partial class DiagramCanvasControl : UserControl
         set => SetValue(NodePlacedCommandProperty, value);
     }
 
+    // async void 必须 try-catch 覆盖全部代码，否则 SynchronizationContext 捕获到未观察异常会崩溃
+    // (WPF 中默认触发 DispatcherUnhandledException)。
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge）。
-        // 必须在 Loaded（绑定已附着）后赋值：构造期写入的本地值会被随后附着的绑定覆盖，
-        // 这里赋值会作为目标值变更推送到 VM 侧属性。
-        SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
+        try
+        {
+            // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge）。
+            // 必须在 Loaded（绑定已附着）后赋值：构造期写入的本地值会被随后附着的绑定覆盖，
+            // 这里赋值会作为目标值变更推送到 VM 侧属性。
+            SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
 
-        _layoutLoaded = true;
-        await LoadLayoutAsync();
+            _layoutLoaded = true;
+            await LoadLayoutAsync();
+        }
+        catch { /* 兜底：已完成部分初始化，载入失败在上层 try-catch 中降级为示例布局 */ }
     }
 
     private static async void OnLayoutFilePathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is DiagramCanvasControl control && control._layoutLoaded)
-            await control.LoadLayoutAsync();
+        try
+        {
+            if (d is DiagramCanvasControl control && control._layoutLoaded)
+                await control.LoadLayoutAsync();
+        }
+        catch { /* 载入失败由 LoadLayoutAsync 内部处理，此处吞掉 async void 的未观察异常 */ }
     }
 
     /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在或解析失败时回退到示例布局。</summary>
@@ -183,7 +196,7 @@ public partial class DiagramCanvasControl : UserControl
     private void BuildDemo()
     {
         Diagram.Clear();
-        DemoLayout.Build(Diagram);
+        DemoLayoutProvider.Build(Diagram);
     }
 
     private void AddNode(object? parameter)
