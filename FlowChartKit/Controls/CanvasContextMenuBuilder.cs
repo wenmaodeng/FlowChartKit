@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using System.Windows.Input;
+using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
@@ -34,7 +35,7 @@ internal static class CanvasContextMenuBuilder
         {
             var addNode = new MenuItem { Header = "添加部件" };
             foreach (var kind in Enum.GetValues<NodeKind>())
-                addNode.Items.Add(NewItem(NodeKindDefaults.DisplayName(kind), host.AddNodeCommand, kind));
+                addNode.Items.Add(NewItem(NodeDefinitionRegistry.Resolve(kind).DisplayName, host.AddNodeCommand, kind));
             menu.Items.Add(addNode);
             menu.Items.Add(NewItem("添加管路", host.AddConnectionCommand, null));
         }

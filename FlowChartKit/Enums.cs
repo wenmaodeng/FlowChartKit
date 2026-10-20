@@ -50,33 +50,3 @@ public static class FlowModeDefaults
         _ => "停止"
     };
 }
-
-/// <summary>部件类型的默认显示名 / 尺寸 / 默认端口</summary>
-public static class NodeKindDefaults
-{
-    public static string DisplayName(NodeKind kind) => kind switch
-    {
-        NodeKind.SampleCup => "样品杯",
-        NodeKind.ReagentBottle => "试剂瓶",
-        NodeKind.Waste => "废液",
-        NodeKind.ReactionCup => "反应杯",
-        NodeKind.Cuvette => "2cm比色皿",
-        NodeKind.Centrifuge => "离心位",
-        NodeKind.NeedleWash => "洗针位",
-        NodeKind.PumpModule => "进样注射泵",
-        _ => "部件"
-    };
-
-    public static (double W, double H) Size(NodeKind kind) => kind switch
-    {
-        NodeKind.SampleCup => (46, 64),
-        NodeKind.ReagentBottle => (56, 58),
-        NodeKind.Waste => (64, 76),
-        NodeKind.ReactionCup => (56, 80),
-        NodeKind.Cuvette => (46, 74),
-        NodeKind.Centrifuge => (56, 80),
-        NodeKind.NeedleWash => (46, 84),
-        NodeKind.PumpModule => (130, 320),
-        _ => (56, 64)
-    };
-}

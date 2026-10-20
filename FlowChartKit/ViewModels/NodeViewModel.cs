@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using FlowChartKit.Core;
+using FlowChartKit.Rendering;
 
 namespace FlowChartKit.ViewModels;
 
@@ -23,11 +24,14 @@ public class NodeViewModel : ObservableBase
     {
         Kind = kind;
         Id = id ?? Guid.NewGuid().ToString("N");
-        _label = string.IsNullOrWhiteSpace(label) ? NodeKindDefaults.DisplayName(kind) : label!;
-        (BaseWidth, BaseHeight) = NodeKindDefaults.Size(kind);
+        // 名称/尺寸/端口由该部件的定义自管理（见 NodeDefinitionRegistry）
+        var def = NodeDefinitionRegistry.Resolve(kind);
+        _label = string.IsNullOrWhiteSpace(label) ? def.DisplayName : label!;
+        (BaseWidth, BaseHeight) = def.BaseSize;
         _x = x;
         _y = y;
-        Ports = new ObservableCollection<PortViewModel>(CreateDefaultPorts(kind));
+        Ports = new ObservableCollection<PortViewModel>(
+            def.Ports.Select(p => new PortViewModel(this, p.Id, p.FX, p.FY, p.Dir)));
     }
 
     public string Id { get; }
@@ -93,30 +97,4 @@ public class NodeViewModel : ObservableBase
     public DiagramViewModel? Diagram { get; internal set; }
 
     public ObservableCollection<PortViewModel> Ports { get; }
-
-    private List<PortViewModel> CreateDefaultPorts(NodeKind kind)
-    {
-        if (kind == NodeKind.PumpModule)
-        {
-            return
-            [
-                new PortViewModel(this, "T",  0.50, 0.02, PortDir.Up),
-                new PortViewModel(this, "L1", 0.00, 0.10, PortDir.Left),
-                new PortViewModel(this, "L2", 0.00, 0.24, PortDir.Left),
-                new PortViewModel(this, "R1", 1.00, 0.10, PortDir.Right),
-                new PortViewModel(this, "R2", 1.00, 0.24, PortDir.Right),
-                new PortViewModel(this, "B1", 0.30, 1.00, PortDir.Down),
-                new PortViewModel(this, "B2", 0.45, 1.00, PortDir.Down),
-                new PortViewModel(this, "B3", 0.60, 1.00, PortDir.Down),
-                new PortViewModel(this, "B4", 0.75, 1.00, PortDir.Down),
-            ];
-        }
-        return
-        [
-            new PortViewModel(this, "T", 0.5, 0, PortDir.Up),
-            new PortViewModel(this, "B", 0.5, 1, PortDir.Down),
-            new PortViewModel(this, "L", 0,   0.5, PortDir.Left),
-            new PortViewModel(this, "R", 1,   0.5, PortDir.Right),
-        ];
-    }
 }

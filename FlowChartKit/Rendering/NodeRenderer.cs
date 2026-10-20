@@ -6,9 +6,9 @@ using FlowChartKit;
 namespace FlowChartKit.Rendering;
 
 /// <summary>
-/// 按部件类型直接向 DrawingContext 绘制矢量图形（不创建 FrameworkElement）。
+/// 部件绘制入口与共享绘制工具：外观由 <see cref="NodeDefinitionRegistry"/> 解析出的
+/// <see cref="INodeDefinition"/> 自管理，本类提供冻结画刷/画笔与几何缓存供各定义复用。
 /// 颜色风格与仪器流路图一致：描边蓝、浅色填充。
-/// 路径几何按字符串缓存并冻结；外观可通过 <see cref="NodeRendererRegistry"/> 整体替换。
 /// </summary>
 public static class NodeRenderer
 {
@@ -16,15 +16,15 @@ public static class NodeRenderer
     public static readonly Brush FillLight = Frozen(0xEA, 0xF0, 0xFB);
     public static readonly Brush FillWhite = Frozen(0xF7, 0xFA, 0xFF);
     public static readonly Brush Accent = Frozen(0x2F, 0x5F, 0xA8);
-    private static readonly Brush PumpCoreFill = Frozen(0xCF, 0xE0, 0xF6);
-    private static readonly Brush PlungerFill = Frozen(0xB9, 0xCD, 0xE9);
+    internal static readonly Brush PumpCoreFill = Frozen(0xCF, 0xE0, 0xF6);
+    internal static readonly Brush PlungerFill = Frozen(0xB9, 0xCD, 0xE9);
 
-    private static readonly Pen OutlinePen = MakePen(Outline, 1.6);
-    private static readonly Pen OutlinePen14 = MakePen(Outline, 1.4);
-    private static readonly Pen OutlinePen12 = MakePen(Outline, 1.2);
-    private static readonly Pen AccentPen = MakePen(Accent, 1.2);
-    private static readonly Pen AccentPen14 = MakePen(Accent, 1.4);
-    private static readonly Pen AccentPen2 = MakePen(Accent, 2.0);
+    internal static readonly Pen OutlinePen = MakePen(Outline, 1.6);
+    internal static readonly Pen OutlinePen14 = MakePen(Outline, 1.4);
+    internal static readonly Pen OutlinePen12 = MakePen(Outline, 1.2);
+    internal static readonly Pen AccentPen = MakePen(Accent, 1.2);
+    internal static readonly Pen AccentPen14 = MakePen(Accent, 1.4);
+    internal static readonly Pen AccentPen2 = MakePen(Accent, 2.0);
 
     private static readonly Pen HighlightPen = CreateHighlightPen();
 
@@ -53,27 +53,9 @@ public static class NodeRenderer
         return pen;
     }
 
-    /// <summary>按部件类型绘制外观；优先取 <see cref="NodeRendererRegistry"/> 中注册的渲染器，未注册时用内置绘制。</summary>
+    /// <summary>按部件类型绘制外观：委托给 <see cref="NodeDefinitionRegistry"/> 解析出的部件定义。</summary>
     public static void Render(DrawingContext dc, NodeKind kind)
-    {
-        if (NodeRendererRegistry.Resolve(kind) is { } custom)
-        {
-            custom.Render(dc);
-            return;
-        }
-
-        switch (kind)
-        {
-            case NodeKind.SampleCup: DrawSampleCup(dc); break;
-            case NodeKind.ReagentBottle: DrawReagentBottle(dc); break;
-            case NodeKind.Waste: DrawWaste(dc); break;
-            case NodeKind.ReactionCup: DrawReactionCup(dc); break;
-            case NodeKind.Cuvette: DrawCuvette(dc); break;
-            case NodeKind.Centrifuge: DrawCentrifuge(dc); break;
-            case NodeKind.NeedleWash: DrawNeedleWash(dc); break;
-            case NodeKind.PumpModule: DrawPump(dc); break;
-        }
-    }
+        => NodeDefinitionRegistry.Resolve(kind).Render(dc);
 
     /// <summary>在指定中心绘制端口标记（浅色圆点 + 细描边），编辑模式下常显。</summary>
     public static void RenderPort(DrawingContext dc, double cx, double cy)
@@ -83,7 +65,7 @@ public static class NodeRenderer
     public static void RenderPortHighlight(DrawingContext dc, double cx, double cy)
         => dc.DrawEllipse(null, HighlightPen, new Point(cx, cy), 8, 8);
 
-    // 路径数据都是编译期常量：解析一次并冻结，跨部件实例复用，避免每次渲染重新 Parse
+    // 路径数据都是编译期常量：解析一次并冻结，跨部件实例复用，避免每次渲染重新 Parse（仅 UI 线程访问）
     private static readonly Dictionary<string, Geometry> s_pathCache = new();
 
     private static Geometry CachedPath(string data)
@@ -97,7 +79,7 @@ public static class NodeRenderer
         return geo;
     }
 
-    // 圆角矩形参数同样是编译期常量：按参数缓存并冻结，与 CachedPath 同理（仅 UI 线程访问）
+    // 圆角矩形参数同样是编译期常量：按参数缓存并冻结，与 CachedPath 同理
     private static readonly Dictionary<(double X, double Y, double W, double H, double R), Geometry> s_roundRectCache = new();
 
     private static Geometry CachedRoundRect(double x, double y, double w, double h, double r)
@@ -112,43 +94,14 @@ public static class NodeRenderer
         return geo;
     }
 
-    private static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
+    internal static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, CachedPath(data));
 
-    private static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
+    internal static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, CachedRoundRect(x, y, w, h, r));
 
-    private static void DrawSampleCup(DrawingContext dc)
-    {
-        DrawPath(dc, "M8,6 L8,44 Q8,58 23,58 Q38,58 38,44 L38,6 Z", FillLight, OutlinePen);
-        DrawPath(dc, "M14,32 L32,32", null, AccentPen);
-        DrawPath(dc, "M14,42 L32,42", null, AccentPen);
-    }
-
-    private static void DrawReagentBottle(DrawingContext dc)
-    {
-        DrawPath(dc, "M22,4 L22,16 L10,48 Q10,56 18,56 L38,56 Q46,56 46,48 L34,16 L34,4 Z", FillLight, OutlinePen);
-        DrawPath(dc, "M15,42 L41,42", null, AccentPen);
-    }
-
-    private static void DrawWaste(DrawingContext dc)
-    {
-        DrawRoundRect(dc, 22, 0, 20, 10, 2, FillLight, OutlinePen);
-        DrawRoundRect(dc, 8, 10, 48, 62, 6, FillLight, OutlinePen);
-        DrawPath(dc, "M14,38 q5,-6 10,0 t10,0 t10,0", null, AccentPen14);
-        DrawPath(dc, "M14,52 q5,-6 10,0 t10,0 t10,0", null, AccentPen14);
-    }
-
-    private static void DrawReactionCup(DrawingContext dc)
-    {
-        DrawRoundRect(dc, 16, 6, 24, 68, 4, FillLight, OutlinePen);
-        DrawPath(dc, "M20,18 L36,18", null, AccentPen);
-    }
-
-    // 比色皿的 "G" 字样：一次性转为矢量轮廓并冻结——分辨率无关（高 DPI 不糊），且免每帧构造 FormattedText
-    private static readonly Geometry CuvetteGlyph = BuildGlyph("G", 12.0, new Point(18, 28));
-
-    private static Geometry BuildGlyph(string text, double size, Point origin)
+    /// <summary>把短文本一次性转成矢量轮廓并冻结：分辨率无关（高 DPI 不糊），供各定义静态缓存复用。</summary>
+    internal static Geometry BuildGlyph(string text, double size, Point origin)
     {
         var ft = new FormattedText(
             text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
@@ -156,49 +109,5 @@ public static class NodeRenderer
         var geo = ft.BuildGeometry(origin);
         geo.Freeze();
         return geo;
-    }
-
-    private static void DrawCuvette(DrawingContext dc)
-    {
-        DrawRoundRect(dc, 16, 2, 14, 10, 1, FillLight, OutlinePen);
-        DrawRoundRect(dc, 8, 12, 30, 56, 2, FillLight, OutlinePen);
-        dc.DrawGeometry(Outline, null, CuvetteGlyph);
-    }
-
-    private static void DrawCentrifuge(DrawingContext dc)
-    {
-        DrawRoundRect(dc, 8, 4, 40, 72, 6, FillLight, OutlinePen);
-        DrawPath(dc, "M8,22 L48,22", null, OutlinePen14);
-        dc.DrawEllipse(FillWhite, AccentPen14, new Point(28, 48), 8, 8);
-    }
-
-    private static void DrawNeedleWash(DrawingContext dc)
-    {
-        DrawPath(dc, "M23,10 L23,46", null, AccentPen2);
-        DrawRoundRect(dc, 15, 2, 16, 8, 2, FillLight, OutlinePen);
-        DrawRoundRect(dc, 8, 46, 30, 32, 4, FillLight, OutlinePen);
-    }
-
-    private static void DrawPump(DrawingContext dc)
-    {
-        // 外壳
-        DrawRoundRect(dc, 2, 2, 126, 316, 18, FillLight, OutlinePen);
-        // 多通阀：外圈
-        dc.DrawEllipse(FillWhite, OutlinePen, new Point(65, 64), 30, 30);
-        // 8 个接口
-        for (int i = 0; i < 8; i++)
-        {
-            double a = i * Math.PI / 4;
-            double cx = 65 + 44 * Math.Cos(a);
-            double cy = 64 + 44 * Math.Sin(a);
-            dc.DrawEllipse(FillLight, OutlinePen14, new Point(cx, cy), 6, 6);
-        }
-        // 内芯
-        dc.DrawEllipse(PumpCoreFill, OutlinePen14, new Point(65, 64), 14, 14);
-        // 注射器
-        DrawRoundRect(dc, 50, 130, 30, 100, 4, FillWhite, OutlinePen);
-        DrawPath(dc, "M50,160 L80,160", null, AccentPen);
-        DrawRoundRect(dc, 61, 230, 8, 56, 2, PlungerFill, OutlinePen12);
-        DrawRoundRect(dc, 44, 286, 42, 14, 3, FillLight, OutlinePen);
     }
 }

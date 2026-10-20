@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
@@ -42,7 +43,7 @@ public partial class PropertiesDialog : Window
     private void BuildNode(NodeViewModel node)
     {
         AddReadOnly("Id", node.Id);
-        AddReadOnly("类型", NodeKindDefaults.DisplayName(node.Kind));
+        AddReadOnly("类型", NodeDefinitionRegistry.Resolve(node.Kind).DisplayName);
         AddText("名称", () => node.Label, v =>
         {
             node.Label = v;
