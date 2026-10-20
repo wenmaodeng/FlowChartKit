@@ -97,11 +97,26 @@ public static class NodeRenderer
         return geo;
     }
 
+    // 圆角矩形参数同样是编译期常量：按参数缓存并冻结，与 CachedPath 同理（仅 UI 线程访问）
+    private static readonly Dictionary<(double X, double Y, double W, double H, double R), Geometry> s_roundRectCache = new();
+
+    private static Geometry CachedRoundRect(double x, double y, double w, double h, double r)
+    {
+        var key = (x, y, w, h, r);
+        if (!s_roundRectCache.TryGetValue(key, out var geo))
+        {
+            geo = new RectangleGeometry(new Rect(x, y, w, h), r, r);
+            geo.Freeze();
+            s_roundRectCache[key] = geo;
+        }
+        return geo;
+    }
+
     private static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, CachedPath(data));
 
     private static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
-        => dc.DrawGeometry(fill, pen, new RectangleGeometry(new Rect(x, y, w, h), r, r));
+        => dc.DrawGeometry(fill, pen, CachedRoundRect(x, y, w, h, r));
 
     private static void DrawSampleCup(DrawingContext dc)
     {
@@ -130,16 +145,24 @@ public static class NodeRenderer
         DrawPath(dc, "M20,18 L36,18", null, AccentPen);
     }
 
-    // 比色皿的 "G" 字样：FormattedText 可跨渲染复用，无需每帧构造
-    private static readonly FormattedText CuvetteText = new(
-        "G", CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-        new Typeface("Arial"), 12.0, Outline, 1.0);
+    // 比色皿的 "G" 字样：一次性转为矢量轮廓并冻结——分辨率无关（高 DPI 不糊），且免每帧构造 FormattedText
+    private static readonly Geometry CuvetteGlyph = BuildGlyph("G", 12.0, new Point(18, 28));
+
+    private static Geometry BuildGlyph(string text, double size, Point origin)
+    {
+        var ft = new FormattedText(
+            text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface("Arial"), size, Brushes.Black, 1.0);
+        var geo = ft.BuildGeometry(origin);
+        geo.Freeze();
+        return geo;
+    }
 
     private static void DrawCuvette(DrawingContext dc)
     {
         DrawRoundRect(dc, 16, 2, 14, 10, 1, FillLight, OutlinePen);
         DrawRoundRect(dc, 8, 12, 30, 56, 2, FillLight, OutlinePen);
-        dc.DrawText(CuvetteText, new Point(18, 28));
+        dc.DrawGeometry(Outline, null, CuvetteGlyph);
     }
 
     private static void DrawCentrifuge(DrawingContext dc)

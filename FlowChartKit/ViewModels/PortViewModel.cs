@@ -26,9 +26,5 @@ public class PortViewModel : ObservableBase
     /// <summary>绝对坐标（画布坐标系）。</summary>
     public Point AbsolutePoint => new(Owner.X + FX * Owner.ShapeWidth, Owner.Y + FY * Owner.ShapeHeight);
 
-    /// <summary>高亮圈（吸附提示）左上角位置。</summary>
-    public double HighlightX => FX * Owner.ShapeWidth - 8;
-    public double HighlightY => FY * Owner.ShapeHeight - 8;
-
     public bool IsHighlighted { get => _isHighlighted; set => Set(ref _isHighlighted, value); }
 }

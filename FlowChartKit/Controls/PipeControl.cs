@@ -105,14 +105,13 @@ public class PipeControl : Control
     }
 
     /// <summary>
-    /// 挂上图模型的属性通知（编号开关）并同步占位尺寸。
-    /// DataContextChanged 时控件可能尚未插入可视树，找不到祖先 ItemsControl，
-    /// 所以解析失败时在 OnRender 中幂等重试（与 FlowNodeControl.EnsureDiagramHook 同理）。
+    /// 挂上图模型的属性通知（编号开关/画布尺寸）并同步占位尺寸。
+    /// 图模型取自 <see cref="ConnectionViewModel.Diagram"/>（构造期注入，恒可用），
+    /// 与 FlowNodeControl 读 NodeViewModel.Diagram 同一模式；OnRender 中的重复调用是幂等空转。
     /// </summary>
     private void EnsureDiagramHook()
     {
-        if (_vm is null) return;
-        var diagram = FindAncestorDiagram();
+        var diagram = _vm?.Diagram;
         if (diagram == _diagram) return;
 
         if (_diagram != null)
@@ -126,18 +125,6 @@ public class PipeControl : Control
             Width = _diagram.CanvasWidth;
             Height = _diagram.CanvasHeight;
         }
-    }
-
-    /// <summary>沿可视树向上找 ItemsControl，取其 DataContext 作为所属图模型。</summary>
-    private DiagramViewModel? FindAncestorDiagram()
-    {
-        DependencyObject? d = this;
-        while (d != null)
-        {
-            if (d is ItemsControl ic) return ic.DataContext as DiagramViewModel;
-            d = VisualTreeHelper.GetParent(d);
-        }
-        return null;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -155,13 +142,26 @@ public class PipeControl : Control
                 UpdateFlowAnimation();
                 InvalidateVisual();
                 break;
+            case nameof(ConnectionViewModel.Number):
+                InvalidateVisual();
+                break;
         }
     }
 
     private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DiagramViewModel.ShowNumbers))
+        {
             InvalidateVisual();
+        }
+        else if (_diagram != null
+            && (e.PropertyName == nameof(DiagramViewModel.CanvasWidth)
+                || e.PropertyName == nameof(DiagramViewModel.CanvasHeight)))
+        {
+            // 画布尺寸可随载入存档变化（见 DiagramViewModel.Load），同步占位尺寸
+            Width = _diagram.CanvasWidth;
+            Height = _diagram.CanvasHeight;
+        }
     }
 
     private void UpdateFlowAnimation()
@@ -316,7 +316,6 @@ public class PipeControl : Control
         base.OnMouseLeftButtonDown(e);
         var vm = _vm;
         if (vm is null) return;
-        // 首次交互可能早于首次渲染，这里幂等补齐图模型挂钩
         EnsureDiagramHook();
 
         var p = e.GetPosition(this);

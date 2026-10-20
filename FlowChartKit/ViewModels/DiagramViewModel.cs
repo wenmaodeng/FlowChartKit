@@ -45,8 +45,14 @@ public class DiagramViewModel : ObservableBase
         }, _ => SelectedConnection != null || SelectedNode != null);
     }
 
-    public double CanvasWidth { get; }
-    public double CanvasHeight { get; }
+    private double _canvasWidth;
+    private double _canvasHeight;
+
+    /// <summary>画布宽度；载入存档时按存档值更新并发通知。</summary>
+    public double CanvasWidth { get => _canvasWidth; private set => Set(ref _canvasWidth, value); }
+
+    /// <summary>画布高度；载入存档时按存档值更新并发通知。</summary>
+    public double CanvasHeight { get => _canvasHeight; private set => Set(ref _canvasHeight, value); }
 
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
@@ -210,6 +216,7 @@ public class DiagramViewModel : ObservableBase
         if (SelectedNode == node) SelectedNode = null;
         node.PropertyChanged -= OnNodePropertyChanged;
         node.GeometryChanged -= OnNodeGeometryChanged;
+        node.Diagram = null; // 解除反向引用：被移除的节点不得再操作本图
         Nodes.Remove(node);
     }
 
@@ -314,9 +321,12 @@ public class DiagramViewModel : ObservableBase
     public void BeginConnectionEndpointDrag(ConnectionViewModel conn, bool isStart, Point mousePos)
         => conn.BeginEndpointDrag(isStart, mousePos);
 
-    /// <summary>拖动中：查找最近端口、更新吸附高亮并刷新折线。</summary>
+    /// <summary>拖动中：查找最近端口、更新吸附高亮并刷新折线。坐标夹取到画布内，防止自由端落到画布外无法拾取。</summary>
     public void UpdateConnectionEndpointDrag(ConnectionViewModel conn, bool isStart, Point pos)
     {
+        pos = new Point(
+            Math.Clamp(pos.X, 0, CanvasWidth),
+            Math.Clamp(pos.Y, 0, CanvasHeight));
         var opposite = isStart ? conn.TargetPort : conn.SourcePort;
         var (snap, _) = FindNearestPort(pos, opposite);
         SetSnapHighlight(snap);
@@ -381,6 +391,7 @@ public class DiagramViewModel : ObservableBase
         {
             n.PropertyChanged -= OnNodePropertyChanged;
             n.GeometryChanged -= OnNodeGeometryChanged;
+            n.Diagram = null;
         }
         Nodes.Clear();
     }
@@ -395,6 +406,8 @@ public class DiagramViewModel : ObservableBase
     public void Load(DiagramData data)
     {
         Clear();
+        if (data.Width > 0) CanvasWidth = data.Width;
+        if (data.Height > 0) CanvasHeight = data.Height;
         var map = new Dictionary<string, NodeViewModel>();
 
         foreach (var nd in data.Nodes)

@@ -46,6 +46,9 @@ public class ConnectionViewModel : ObservableBase
 
     public string Id { get; }
 
+    /// <summary>所属图模型（程序集内部使用：管路控件据此读取编辑态/编号开关/画布尺寸）。</summary>
+    internal DiagramViewModel Diagram => _diagram;
+
     private int _number;
     /// <summary>管路编号（按集合顺序从 1 开始，持久化）。</summary>
     public int Number

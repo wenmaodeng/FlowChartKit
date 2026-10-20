@@ -3,6 +3,5 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- 控件均通过 OnRender 自绘，无需 ControlTemplate/DataTemplate。 -->
-    <BooleanToVisibilityConverter x:Key="FcBoolToVis" />
 
 </ResourceDictionary>

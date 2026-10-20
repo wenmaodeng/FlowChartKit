@@ -1,5 +1,6 @@
 using System.Windows;
 using FlowChartKit;
+using FlowChartKit.Data;
 using FlowChartKit.ViewModels;
 using Xunit;
 
@@ -117,5 +118,42 @@ public class DiagramViewModelTests
         Assert.Same(targetPort, conn.TargetPort);
         Assert.Null(conn.FreeTarget); // 已接端口后不再是自由端
         Assert.False(targetPort.IsHighlighted); // 结束后高亮已清除
+    }
+
+    [Fact]
+    public void EndpointDrag_OutsideCanvas_ClampedToBounds()
+    {
+        var (d, _, _) = NewDiagramWithTwoNodes(); // 画布 800×600
+        var conn = d.AddFreeConnection(new Point(10, 10), new Point(50, 50));
+
+        d.BeginConnectionEndpointDrag(conn, isStart: false, new Point(50, 50));
+        d.UpdateConnectionEndpointDrag(conn, isStart: false, new Point(1200, -80));
+        d.EndConnectionEndpointDrag(conn);
+
+        Assert.NotNull(conn.FreeTarget);
+        Assert.Equal(800, conn.FreeTarget!.Value.X);
+        Assert.Equal(0, conn.FreeTarget!.Value.Y);
+    }
+
+    [Fact]
+    public void RemoveNode_ClearsNodeDiagramReference()
+    {
+        var (d, a, _) = NewDiagramWithTwoNodes();
+
+        d.RemoveNode(a);
+
+        Assert.Null(a.Diagram);
+    }
+
+    [Fact]
+    public void Load_RestoresCanvasSize()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var data = new DiagramData { Width = 1600, Height = 1200 };
+
+        d.Load(data);
+
+        Assert.Equal(1600, d.CanvasWidth);
+        Assert.Equal(1200, d.CanvasHeight);
     }
 }

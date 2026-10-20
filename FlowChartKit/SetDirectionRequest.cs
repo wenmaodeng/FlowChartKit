@@ -3,7 +3,7 @@ namespace FlowChartKit;
 /// <summary>
 /// "按编号设置流向"命令的参数：宿主 VM 构造后经 <c>ICommand.Execute</c> 传给画布控件，
 /// 控件执行后把结果回填到 <see cref="Result"/>。
-/// 配合画布控件的 SetDirectionCommand 依赖属性 + OneWayToSource 绑定使用，VM 不引用任何控件类型。
+/// 配合画布控件的 SetDirectionByNumberCommand 依赖属性 + OneWayToSource 绑定使用，VM 不引用任何控件类型。
 /// </summary>
 public sealed class SetDirectionRequest
 {

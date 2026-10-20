@@ -128,7 +128,7 @@ public partial class DiagramCanvasControl : UserControl
         set => SetValue(NodePlacedCommandProperty, value);
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge）。
         // 必须在 Loaded（绑定已附着）后赋值：构造期写入的本地值会被随后附着的绑定覆盖，
@@ -136,21 +136,21 @@ public partial class DiagramCanvasControl : UserControl
         SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
 
         _layoutLoaded = true;
-        LoadLayout();
+        await LoadLayoutAsync();
     }
 
-    private static void OnLayoutFilePathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static async void OnLayoutFilePathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is DiagramCanvasControl control && control._layoutLoaded)
-            control.LoadLayout();
+            await control.LoadLayoutAsync();
     }
 
-    /// <summary>载入序列化文件；文件不存在或解析失败时回退到示例布局。</summary>
-    private void LoadLayout()
+    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在或解析失败时回退到示例布局。</summary>
+    private async Task LoadLayoutAsync()
     {
         try
         {
-            var data = LayoutStore.Load(EffectiveLayoutFilePath);
+            var data = await LayoutStore.LoadAsync(EffectiveLayoutFilePath);
             if (data is null) BuildDemo();
             else Diagram.Load(data);
         }
@@ -160,12 +160,12 @@ public partial class DiagramCanvasControl : UserControl
         }
     }
 
-    private void SaveLayout()
+    private async void SaveLayout()
     {
         try
         {
             var path = EffectiveLayoutFilePath;
-            LayoutStore.Save(Diagram.ToData(), path);
+            await LayoutStore.SaveAsync(Diagram.ToData(), path);
             StatusChanged?.Invoke($"已保存：{path}");
         }
         catch (Exception ex)
