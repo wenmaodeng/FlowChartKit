@@ -69,8 +69,6 @@ public partial class DiagramCanvasControl : UserControl
         InitializeComponent();
         // 外部设置的 LayoutFilePath 在构造之后才生效，故统一在 Loaded 时首次载入
         Loaded += OnLoaded;
-        // 订阅宿主 VM 的"设置流向"请求事件；VM 不引用控件，靠此事件桥接
-        DataContextChanged += OnDataContextChanged;
     }
 
     /// <summary>内置流路图视图模型（控件自建并持有，外部只读）。</summary>
@@ -132,6 +130,11 @@ public partial class DiagramCanvasControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge）。
+        // 必须在 Loaded（绑定已附着）后赋值：构造期写入的本地值会被随后附着的绑定覆盖，
+        // 这里赋值会作为目标值变更推送到 VM 侧属性。
+        SetValue(SetDirectionCommandProperty, new RelayCommand(ExecuteSetDirection));
+
         _layoutLoaded = true;
         LoadLayout();
     }

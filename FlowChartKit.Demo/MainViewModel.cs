@@ -11,24 +11,29 @@ namespace FlowChartKit.Demo;
 public sealed record FlowModeItem(FlowMode Value, string Text);
 
 /// <summary>
-/// 宿主 ViewModel：完全不认识画布控件，只通过 <see cref="IFlowDirectionRequester.SetDirectionRequested"/>
-/// 事件对外发出"按编号设置流向"的请求；由画布控件订阅该事件并落到自身图模型上。
-/// 这是最纯的 MVVM 分层：VM 不引用任何 View / 控件类型，可独立单元测试。
+/// 宿主 ViewModel：完全不认识画布控件，只持有一个由画布控件经 OneWayToSource 绑定灌入的
+/// <see cref="ICommand"/>，调用时传 <see cref="SetDirectionRequest"/> 并读取回填的 Result。
+/// 这是最纯的 MVVM 分层：VM 不引用任何 View / 控件类型，可独立单元测试（用 mock command 即可）。
 /// </summary>
-public class MainViewModel : ObservableBase, IFlowDirectionRequester
+public class MainViewModel : ObservableBase
 {
     private int _number = 1;
     private FlowMode _direction = FlowMode.Forward;
     private string _statusText = "就绪";
-
-    /// <summary>请求按编号设置流向的事件；画布控件订阅并把请求落到图上。</summary>
-    public event EventHandler<SetDirectionEventArgs>? SetDirectionRequested;
+    private ICommand? _setDirectionCommand;
 
     /// <summary>ViewModel 直接在 XAML 里创建，无需代码后置注入。</summary>
     public MainViewModel()
     {
-        // 按钮可用性只判编号；成功与否由事件回传的 Result 决定，不会出现"灰按钮"掩盖真实原因
+        // 按钮可用性只判编号；成功与否由命令回填的 Result 决定，不会出现"灰按钮"掩盖真实原因
         ApplyCommand = new RelayCommand(_ => Execute(), _ => Number > 0);
+    }
+
+    /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
+    public ICommand? SetDirectionCommand
+    {
+        get => _setDirectionCommand;
+        set => Set(ref _setDirectionCommand, value);
     }
 
     /// <summary>要设置流向的管路编号，从 1 开始，与画布上的编号徽章一致。</summary>
@@ -63,11 +68,17 @@ public class MainViewModel : ObservableBase, IFlowDirectionRequester
 
     private void Execute()
     {
-        // 只发请求、不持有控件；是否成功由处理方回填到事件参数的 Result
-        var args = new SetDirectionEventArgs(Number, Direction);
-        SetDirectionRequested?.Invoke(this, args);
+        // 只发请求、不持有控件；是否成功由控件回填到请求对象的 Result
+        if (SetDirectionCommand is null)
+        {
+            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
+            return;
+        }
 
-        StatusText = args.Result == true
+        var request = new SetDirectionRequest(Number, Direction);
+        SetDirectionCommand.Execute(request);
+
+        StatusText = request.Result == true
             ? $"管路 #{Number} 已设为{FlowModeDefaults.DisplayName(Direction)}"
             : $"未找到编号为 {Number} 的管路";
     }
