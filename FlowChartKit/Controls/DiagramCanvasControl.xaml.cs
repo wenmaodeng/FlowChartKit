@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using FlowChartKit.Core;
 using FlowChartKit.Data;
+using FlowChartKit;
 using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
@@ -17,9 +18,11 @@ namespace FlowChartKit.Controls;
 /// 通过 <see cref="LayoutFilePath"/> 指定序列化文件（未指定则用默认路径），加载时自动读取。
 /// 全部操作走右键菜单：未选中时可添加部件/管路；选中管路后可设正向/反向/停止/删除；
 /// 选中部件后可删除；始终提供编辑模式、保存布局、恢复示例。
-/// 对外还实现 <see cref="IFlowChartController"/>，可编程开关编辑模式、按编号设置管路流向。
+/// 与宿主的解耦方式：宿主 ViewModel 实现 <see cref="IFlowDirectionRequester"/> 并触发
+/// <see cref="IFlowDirectionRequester.SetDirectionRequested"/> 事件，本控件订阅后调用
+/// <see cref="SetConnectionDirection"/> 落到图模型——VM 完全不引用本控件类型。
 /// </summary>
-public partial class DiagramCanvasControl : UserControl, IFlowChartController
+public partial class DiagramCanvasControl : UserControl
 {
     private static readonly DependencyPropertyKey DiagramPropertyKey = DependencyProperty.RegisterReadOnly(
         nameof(Diagram), typeof(DiagramViewModel), typeof(DiagramCanvasControl),
@@ -50,6 +53,9 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
     /// <summary>最近一次右键的画布坐标，供菜单里的"添加"操作定位。</summary>
     private Point _menuPosition;
 
+    /// <summary>当前订阅了设置流向事件的宿主请求方（DataContext 实现 <see cref="IFlowDirectionRequester"/> 时）。</summary>
+    private IFlowDirectionRequester? _requester;
+
     public DiagramCanvasControl()
     {
         // 先创建内置图模型，再加载 XAML，保证内部绑定首次求值即可拿到实例
@@ -59,13 +65,14 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
         diagram.PropertyChanged += OnDiagramPropertyChanged;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         ResetDemoCommand = new RelayCommand(_ => ResetToDemo());
-        SetDirectionCommand = new RelayCommand(ExecuteSetDirection);
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
         InitializeComponent();
         // 外部设置的 LayoutFilePath 在构造之后才生效，故统一在 Loaded 时首次载入
         Loaded += OnLoaded;
+        // 订阅宿主 VM 的"设置流向"请求事件；VM 不引用控件，靠此事件桥接
+        DataContextChanged += OnDataContextChanged;
     }
 
     /// <summary>内置流路图视图模型（控件自建并持有，外部只读）。</summary>
@@ -105,12 +112,6 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
 
     /// <summary>重建内置示例布局（右键菜单）。</summary>
     public ICommand ResetDemoCommand { get; }
-
-    /// <summary>
-    /// 按管路编号设置流向的命令，参数为 <see cref="SetDirectionRequest"/>。
-    /// 供宿主以 MVVM 方式绑定调用，等价于 <see cref="SetConnectionDirection"/>。
-    /// </summary>
-    public ICommand SetDirectionCommand { get; }
 
     /// <summary>弹出属性窗口，显示当前选中部件或管路的属性（右键菜单）。</summary>
     public ICommand ShowPropertiesCommand { get; }
@@ -212,7 +213,8 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
     }
 
     /// <summary>
-    /// 按管路编号设置流向（<see cref="IFlowChartController"/> 的实现）。
+    /// 按管路编号设置流向。由 <see cref="OnSetDirectionRequested"/> 在收到 VM 的
+    /// <see cref="IFlowDirectionRequester.SetDirectionRequested"/> 事件时调用，也可被宿主代码直接调用。
     /// 编号与画布上的编号徽章一致，从 1 开始。
     /// </summary>
     /// <returns>找到并设置了该编号的管路时为 true；编号不存在时为 false。</returns>
@@ -230,11 +232,20 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
         return true;
     }
 
-    /// <summary><see cref="SetDirectionCommand"/> 的执行体：只接受 <see cref="SetDirectionRequest"/>。</summary>
-    private void ExecuteSetDirection(object? parameter)
+    /// <summary>DataContext 变为实现 <see cref="IFlowDirectionRequester"/> 的 VM 时订阅其请求事件；切换时先退订旧 VM。</summary>
+    private void OnDataContextChanged(object? sender, DependencyPropertyChangedEventArgs e)
     {
-        if (parameter is SetDirectionRequest request)
-            SetConnectionDirection(request.Number, request.Direction);
+        if (_requester is not null)
+            _requester.SetDirectionRequested -= OnSetDirectionRequested;
+        _requester = e.NewValue as IFlowDirectionRequester;
+        if (_requester is not null)
+            _requester.SetDirectionRequested += OnSetDirectionRequested;
+    }
+
+    /// <summary>响应 VM 的设置流向请求，落到图模型并把结果回填到事件参数。</summary>
+    private void OnSetDirectionRequested(object? sender, SetDirectionEventArgs e)
+    {
+        e.Result = SetConnectionDirection(e.Number, e.Direction);
     }
 
     /// <summary>编辑模式下写到图模型。</summary>
@@ -244,8 +255,6 @@ public partial class DiagramCanvasControl : UserControl, IFlowChartController
             control.Diagram.IsEditable = (bool)e.NewValue;
     }
 
-    /// <summary>
-    /// DataContext 到达后把回调补推给宿主。
     /// <summary>图模型侧改编辑模式时回写到依赖属性；SetCurrentValue 不会覆盖外部绑定。</summary>
     private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

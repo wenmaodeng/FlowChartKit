@@ -36,9 +36,8 @@
         </Border>
 
         <!-- 全部操作（添加/流向/删除/保存/恢复/编辑模式）均在画布控件内完成 -->
-        <!-- 附加行为：把控件原生的设置流向回调写进 ViewModel（Sink 绑定到 DataContext 自身） -->
-        <fc:DiagramCanvasControl IsEditable="True"
-                                 fc:FlowDirectionBehavior.Sink="{Binding}" />
+        <!-- 设置流向：VM 抛出 SetDirectionRequested 事件，画布控件订阅后落到图上；无需任何附加行为 -->
+        <fc:DiagramCanvasControl IsEditable="True" />
     </DockPanel>
 
 </Window>
