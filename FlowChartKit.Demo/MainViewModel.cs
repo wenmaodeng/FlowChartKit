@@ -79,17 +79,6 @@ public class MainViewModel : ObservableBase, IFlowDirectionSink
     /// <summary>按当前编号与方向执行回调。</summary>
     public ICommand ApplyCommand { get; }
 
-    /// <summary>初始流向：1 号正向、2 号反向、3 号停止。</summary>
-    public void ApplyInitialFlow()
-    {
-        var setDirection = SetDirection;
-        if (setDirection is null) return;
-
-        foreach (var (number, mode) in new[] { (1, FlowMode.Forward), (2, FlowMode.Reverse), (3, FlowMode.None) })
-            setDirection(number, mode);
-
-        StatusText = "已恢复初始流向";
-    }
 
     private void Execute()
     {
