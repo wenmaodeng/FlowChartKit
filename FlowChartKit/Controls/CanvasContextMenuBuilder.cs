@@ -8,7 +8,7 @@ namespace FlowChartKit.Controls;
 /// <summary>
 /// 画布右键菜单构建器：按当前选中状态重建菜单项。
 /// 选中管路 → 流向/属性/删除；选中部件 → 属性/删除；
-/// 空白处 → 添加部件/管路；始终附加编辑模式/保存布局/恢复示例。
+/// 空白处 → 添加部件/管路；始终附加编辑模式/保存布局/清空布局。
 /// </summary>
 internal static class CanvasContextMenuBuilder
 {
@@ -44,6 +44,7 @@ internal static class CanvasContextMenuBuilder
         menu.Items.Add(new Separator());
         menu.Items.Add(NewEditableItem(host));
         menu.Items.Add(NewItem("保存布局", host.SaveLayoutCommand, null));
+        menu.Items.Add(NewItem("清空布局", host.ClearLayoutCommand, null));
     }
 
     private static MenuItem NewItem(string header, ICommand command, object? parameter)

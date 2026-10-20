@@ -65,6 +65,7 @@ public partial class DiagramCanvasControl : UserControl
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
+        ClearLayoutCommand = new RelayCommand(_ => ClearLayout());
         InitializeComponent();
         // 外部设置的 LayoutFilePath 在构造之后才生效，故统一在 Loaded 时首次载入
         Loaded += OnLoaded;
@@ -106,6 +107,9 @@ public partial class DiagramCanvasControl : UserControl
 
     /// <summary>弹出属性窗口，显示当前选中部件或管路的属性（右键菜单）。</summary>
     public ICommand ShowPropertiesCommand { get; }
+
+    /// <summary>清空画布上所有部件与管路（右键菜单）。</summary>
+    public ICommand ClearLayoutCommand { get; }
 
     /// <summary>操作结果的提示文本，供宿主状态栏显示。</summary>
     public event Action<string>? StatusChanged;
@@ -177,6 +181,12 @@ public partial class DiagramCanvasControl : UserControl
         {
             StatusChanged?.Invoke($"保存失败：{ex.Message}");
         }
+    }
+
+    private void ClearLayout()
+    {
+        Diagram.Clear();
+        StatusChanged?.Invoke("已清空布局");
     }
 
     private void AddNode(object? parameter)
