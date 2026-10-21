@@ -9,7 +9,7 @@
     <PackageId>FlowChartKit</PackageId>
     <Authors>wenmaodeng</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/wenmaodeng/FlowChartKit</RepositoryUrl>
+    <RepositoryUrl>https://github.com/wenmaodeng/FlowChartKit.git</RepositoryUrl>
     <PackageProjectUrl>https://github.com/wenmaodeng/FlowChartKit</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

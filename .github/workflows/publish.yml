@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write # 创建 GitHub Release 并上传附件
+  id-token: write # Trusted Publishing：向 NuGet.org 换取短期 API Key 所需的 OIDC 令牌
 
 jobs:
   publish:
@@ -33,8 +34,10 @@ jobs:
       - name: Pack
         run: dotnet pack FlowChartKit/FlowChartKit.csproj -c Release -o artifacts
 
-      - name: Push to NuGet.org
-        run: dotnet nuget push artifacts/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGET_KEY }} --skip-duplicate
+      # Trusted Publishing：不传 --api-key，.NET SDK 内置凭据提供商会在 GitHub Actions 环境
+      # 下自动用 OIDC 令牌向 NuGet.org 完成身份验证（需 id-token: write + environment 与策略匹配）
+      - name: Push to NuGet.org (Trusted Publishing)
+        run: dotnet nuget push artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
         env:
