@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using FlowChartKit;
 using FlowChartKit.Controls;
+using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 using Xunit;
 
@@ -143,6 +144,33 @@ public class KeyboardAndHitTestTests
                 Assert.Same(port, conn.TargetPort);
                 Assert.False((bool)Field(pipe, "_draggingEndpoint").GetValue(pipe)!);
                 Assert.False(pipe.IsMouseCaptured);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    // ---- 设置部件状态（枚举载荷） ----
+
+    [Fact]
+    public void Led_SetNodeStateByNumber_AcceptsColorEnumPayload()
+    {
+        RunOnSta(() =>
+        {
+            var canvas = new DiagramCanvasControl();
+            var window = HostInWindow(canvas);
+            window.Show();
+            try
+            {
+                var led = canvas.Diagram.AddNode(NodeKind.Led, 100, 100);
+
+                // 宿主经 SetNodeState（命令同路径）下发枚举载荷：原样写入 State
+                Assert.True(canvas.SetNodeState(NodeKind.Led, led.KindNumber, LedColorState.Green));
+                Assert.Equal(LedColorState.Green, led.State);
+
+                // 双击从枚举态继续循环：绿 → 蓝
+                NodeDefinitionRegistry.Resolve(NodeKind.Led)
+                    .InvokeEvent(led, NodeEventGesture.DoubleClick, "ToggleColor");
+                Assert.Equal(LedColorState.Blue, led.State);
             }
             finally { window.Close(); }
         });

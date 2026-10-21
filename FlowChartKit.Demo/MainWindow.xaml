@@ -48,6 +48,16 @@
                 <Button Content="设置状态" Padding="14,4" Margin="12,0,0,0"
                         Command="{Binding ApplyStateCommand}" />
 
+                <TextBlock Text="LED颜色" VerticalAlignment="Center" Margin="16,0,6,0" />
+                <ComboBox Width="90" VerticalContentAlignment="Center"
+                          ItemsSource="{Binding LedColors}"
+                          DisplayMemberPath="Text"
+                          SelectedValuePath="Value"
+                          SelectedValue="{Binding SelectedLedColor}" />
+
+                <Button Content="设置LED状态" Padding="14,4" Margin="12,0,0,0"
+                        Command="{Binding ApplyLedStateCommand}" />
+
                 <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
                            Margin="16,0,0,0" Foreground="#555555" />
             </StackPanel>

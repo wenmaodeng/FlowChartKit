@@ -20,6 +20,23 @@ public enum NodeKind
 /// <summary>端口出口方向</summary>
 public enum PortDir { Up, Down, Left, Right }
 
+/// <summary>
+/// LED 指示灯的颜色状态：作为 <c>NodeViewModel.State</c> 的约定载荷类型，
+/// 经 <c>SetNodeStateByNumberCommand</c>（或直接 <c>SetNodeState</c>）下发；
+/// 双击循环切换的也是此枚举。未匹配的载荷（null 或宿主自定义对象）按 Gray 渲染。
+/// </summary>
+public enum LedColorState
+{
+    /// <summary>灰色（熄灭，默认）</summary>
+    Gray = 0,
+    /// <summary>红色</summary>
+    Red = 1,
+    /// <summary>绿色</summary>
+    Green = 2,
+    /// <summary>蓝色</summary>
+    Blue = 3
+}
+
 /// <summary>流路方向</summary>
 public enum FlowMode
 {

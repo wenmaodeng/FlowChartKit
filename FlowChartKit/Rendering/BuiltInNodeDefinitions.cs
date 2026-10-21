@@ -188,21 +188,17 @@ public sealed class PumpModuleDefinition : INodeDefinition
 }
 
 /// <summary>
-/// LED 指示灯（内置）：圆形灯座 + 状态色灯泡 + 高光。State 即颜色，用 <see cref="LedDefinition"/>
-/// 的公开常量约定（Gray/Red/Green/Blue，默认 Gray）；双击循环切换四色，
+/// LED 指示灯（内置）：圆形灯座 + 状态色灯泡 + 高光。State 即颜色，
+/// 约定载荷类型为 <see cref="LedColorState"/>（默认 Gray）；双击循环切换四色，
 /// 由定义经 <see cref="INodeDefinition.InvokeEvent"/> 自消费，宿主零代码开箱即用。
-/// 宿主也可经 SetNodeStateByNumberCommand 程序化设置（传任意常量值或自定义载荷——未匹配时按 Gray 渲染）。
+/// 宿主也可经 SetNodeStateByNumberCommand 程序化设置（第三个参数传 <see cref="LedColorState"/>
+/// ——未匹配的载荷（null 或自定义对象）按 Gray 渲染）。
 /// </summary>
 public sealed class LedDefinition : INodeDefinition
 {
-    /// <summary>State 载荷的颜色约定值（宿主程序化设置时与定义保持一致）。</summary>
-    public const string StateGray = "Gray";
-    public const string StateRed = "Red";
-    public const string StateGreen = "Green";
-    public const string StateBlue = "Blue";
-
     /// <summary>双击循环顺序：灰 → 红 → 绿 → 蓝 → 灰。</summary>
-    public static readonly IReadOnlyList<string> ColorCycle = [StateGray, StateRed, StateGreen, StateBlue];
+    public static readonly IReadOnlyList<LedColorState> ColorCycle =
+        [LedColorState.Gray, LedColorState.Red, LedColorState.Green, LedColorState.Blue];
 
     private static readonly Brush s_bezelFill = Frozen(0xC9, 0xD2, 0xDF);   // 金属灯座
     private static readonly Brush s_grayBulb = Frozen(0xB2, 0xB9, 0xC6);    // 灰（熄灭）
@@ -235,19 +231,19 @@ public sealed class LedDefinition : INodeDefinition
         if (gesture != NodeEventGesture.DoubleClick || eventId != "ToggleColor")
             return false;
 
-        // 循环取下一色；当前值不在约定内（宿主自定义载荷）时视为灰，从头开始
-        var current = node.State as string;
+        // 循环取下一色；当前值不在约定内（null 或宿主自定义载荷）时视为灰，从头开始
+        var current = node.State as LedColorState?;
         var index = IndexOfColor(current);
         node.State = ColorCycle[(index + 1) % ColorCycle.Count];
         return true;
     }
 
-    public void Render(DrawingContext dc) => RenderBulb(dc, StateGray);
+    public void Render(DrawingContext dc) => RenderBulb(dc, LedColorState.Gray);
 
     public void Render(DrawingContext dc, ViewModels.NodeViewModel node)
-        => RenderBulb(dc, node?.State as string);
+        => RenderBulb(dc, node?.State as LedColorState?);
 
-    private void RenderBulb(DrawingContext dc, string? state)
+    private void RenderBulb(DrawingContext dc, LedColorState? state)
     {
         var center = new Point(16, 16);
         // 金属灯座
@@ -255,9 +251,9 @@ public sealed class LedDefinition : INodeDefinition
         // 灯泡（未匹配的 State 载荷按灰渲染）
         var bulb = state switch
         {
-            StateRed => s_redBulb,
-            StateGreen => s_greenBulb,
-            StateBlue => s_blueBulb,
+            LedColorState.Red => s_redBulb,
+            LedColorState.Green => s_greenBulb,
+            LedColorState.Blue => s_blueBulb,
             _ => s_grayBulb,
         };
         dc.DrawEllipse(bulb, NodeRenderer.OutlinePen14, center, 10, 10);
@@ -265,11 +261,11 @@ public sealed class LedDefinition : INodeDefinition
         dc.DrawEllipse(s_gloss, null, new Point(11.5, 11.5), 3.2, 2.4);
     }
 
-    private static int IndexOfColor(string? state) => state switch
+    private static int IndexOfColor(LedColorState? state) => state switch
     {
-        StateRed => 1,
-        StateGreen => 2,
-        StateBlue => 3,
+        LedColorState.Red => 1,
+        LedColorState.Green => 2,
+        LedColorState.Blue => 3,
         _ => 0,
     };
 }

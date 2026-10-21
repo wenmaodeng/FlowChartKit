@@ -65,6 +65,9 @@ public class MainViewModel : ObservableBase
         // 设置部件状态：与设置流向同一模式——控件在 Loaded 时把内置命令经 OneWayToSource 灌入，
         // VM 只发请求、读取回填的 Result
         ApplyStateCommand = new RelayCommand(_ => ExecuteSetState(), _ => NodeNumber > 0);
+
+        // 设置 LED 状态：同一命令桥，第三个参数传 LedColorState 枚举（与 LedDefinition 的约定一致）
+        ApplyLedStateCommand = new RelayCommand(_ => ExecuteSetLedState(), _ => NodeNumber > 0);
     }
 
     /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
@@ -154,6 +157,46 @@ public class MainViewModel : ObservableBase
 
     /// <summary>按当前类型/编号/状态发出设置部件状态请求。</summary>
     public RelayCommand ApplyStateCommand { get; }
+
+    /// <summary>按当前编号与 LED 颜色发出设置指示灯状态请求。</summary>
+    public RelayCommand ApplyLedStateCommand { get; }
+
+    /// <summary>LED 颜色下拉框条目：显示名 + 枚举值。</summary>
+    public sealed record LedColorItem(LedColorState Value, string Text);
+
+    /// <summary>LED 颜色可选项，与 <see cref="LedColorState"/> 一一对应。</summary>
+    public IReadOnlyList<LedColorItem> LedColors { get; } =
+    [
+        new(LedColorState.Gray, "灰色（熄灭）"),
+        new(LedColorState.Red, "红色"),
+        new(LedColorState.Green, "绿色"),
+        new(LedColorState.Blue, "蓝色"),
+    ];
+
+    private LedColorState _selectedLedColor = LedColorState.Red;
+    /// <summary>要下发给指示灯的颜色状态（作为 object 载荷进入 SetNodeState 第三参数）。</summary>
+    public LedColorState SelectedLedColor
+    {
+        get => _selectedLedColor;
+        set => Set(ref _selectedLedColor, value);
+    }
+
+    private void ExecuteSetLedState()
+    {
+        if (SetNodeStateByNumberCommand is null)
+        {
+            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
+            return;
+        }
+
+        // 枚举直接装箱为 object 载荷下发；LedDefinition 按枚举渲染对应颜色
+        var request = new SetNodeStateRequest(NodeKind.Led, NodeNumber, SelectedLedColor);
+        SetNodeStateByNumberCommand.Execute(request);
+
+        StatusText = request.Result == true
+            ? $"指示灯 #{NodeNumber} 已设为{LedColors.First(c => c.Value == SelectedLedColor).Text}"
+            : $"未找到 指示灯 #{NodeNumber}";
+    }
 
     private void ExecuteSetState()
     {

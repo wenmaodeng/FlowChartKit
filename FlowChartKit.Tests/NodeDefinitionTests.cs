@@ -288,15 +288,15 @@ public class NodeDefinitionTests
 
         // 双击循环：灰 → 红 → 绿 → 蓝 → 灰（未设置的 State 视为灰起点）
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateRed, node.State);
+        Assert.Equal(LedColorState.Red, node.State);
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateGreen, node.State);
+        Assert.Equal(LedColorState.Green, node.State);
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateBlue, node.State);
+        Assert.Equal(LedColorState.Blue, node.State);
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateGray, node.State);
+        Assert.Equal(LedColorState.Gray, node.State);
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateRed, node.State);
+        Assert.Equal(LedColorState.Red, node.State);
     }
 
     [Fact]
@@ -307,7 +307,7 @@ public class NodeDefinitionTests
 
         // 未匹配约定色的 State 视为灰：下一次切到红
         def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
-        Assert.Equal(LedDefinition.StateRed, node.State);
+        Assert.Equal(LedColorState.Red, node.State);
     }
 
     [Fact]
@@ -328,7 +328,7 @@ public class NodeDefinitionTests
         var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
         var node = new NodeViewModel(NodeKind.Led);
 
-        foreach (var state in new object?[] { null, "宿主自定义载荷", LedDefinition.StateGray, LedDefinition.StateRed, LedDefinition.StateGreen, LedDefinition.StateBlue })
+        foreach (var state in new object?[] { null, "宿主自定义载荷", LedColorState.Gray, LedColorState.Red, LedColorState.Green, LedColorState.Blue })
         {
             node.State = state;
             var visual = new DrawingVisual();
