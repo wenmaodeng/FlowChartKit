@@ -305,6 +305,16 @@ public class FlowNodeControl : Control
     {
         base.OnMouseMove(e);
         if (!_dragging || !IsMouseCaptured || _vm is null) return;
+
+        // 拖拽中途切出编辑模式：立即终止本次拖拽，避免模式切换的中间态继续移动部件
+        if (Diagram is not { IsEditable: true })
+        {
+            _dragging = false;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
         var canvas = GetItemsCanvas();
         if (canvas is null) return;
 

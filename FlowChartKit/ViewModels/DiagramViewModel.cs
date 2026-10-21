@@ -60,6 +60,9 @@ public class DiagramViewModel : ObservableBase
     /// <summary>部件 → 相连管路 的索引：节点移动/缩放时只重算自己的管路，避免全图扫描。</summary>
     private readonly Dictionary<NodeViewModel, List<ConnectionViewModel>> _connectionsByNode = new();
 
+    /// <summary>Load 批量添加部件期间抑制逐个序号重排，载入完毕后统一执行一次。</summary>
+    private bool _suppressRenumber;
+
     /// <summary>编辑模式：true 允许拖动部件/端点并显示端点手柄；关闭时管路编号一并隐藏。</summary>
     public bool IsEditable
     {
@@ -147,7 +150,8 @@ public class DiagramViewModel : ObservableBase
         node.PropertyChanged += OnNodePropertyChanged;
         node.GeometryChanged += OnNodeGeometryChanged;
         Nodes.Add(node);
-        RenumberNodes();
+        if (!_suppressRenumber)
+            RenumberNodes();
         return node;
     }
 
@@ -243,7 +247,8 @@ public class DiagramViewModel : ObservableBase
                 list[i].Recompute();
     }
 
-    /// <summary>同类部件按 Nodes 集合顺序从 1 重排序号（添加/移除后调用；非拖动热路径，整表一遍遍历即可）。</summary>
+    /// <summary>同类部件按 Nodes 集合顺序从 1 重排序号（添加/移除后调用；非拖动热路径，整表一遍遍历即可）。
+    /// 批量载入期间经 <see cref="_suppressRenumber"/> 抑制，完毕后统一执行。</summary>
     private void RenumberNodes()
     {
         var counters = new Dictionary<NodeKind, int>();
@@ -427,12 +432,22 @@ public class DiagramViewModel : ObservableBase
         if (data.Height > 0) CanvasHeight = data.Height;
         var map = new Dictionary<string, NodeViewModel>();
 
-        foreach (var nd in data.Nodes)
+        // 批量载入期间抑制逐个重排（避免 O(n²)），完毕后统一重排一次
+        _suppressRenumber = true;
+        try
         {
-            var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
-            node.Scale = nd.Scale > 0 ? nd.Scale : 1;
-            map[nd.Id] = node;
+            foreach (var nd in data.Nodes)
+            {
+                var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
+                node.Scale = nd.Scale > 0 ? nd.Scale : 1;
+                map[nd.Id] = node;
+            }
         }
+        finally
+        {
+            _suppressRenumber = false;
+        }
+        RenumberNodes();
 
         // 存档编号在全部部件就位后统一回填：AddNode 的顺序重排会覆盖逐个赋值；
         // 旧存档无编号（0）的部件保留推导值
