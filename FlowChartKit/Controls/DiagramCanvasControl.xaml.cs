@@ -8,6 +8,7 @@ using System.Windows.Media;
 using FlowChartKit.Core;
 using FlowChartKit.Data;
 using FlowChartKit;
+using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
@@ -47,6 +48,7 @@ public partial class DiagramCanvasControl : UserControl
         new PropertyMetadata(null));
 
     private bool _layoutLoaded;
+    private bool _initialLoadDone;
 
     /// <summary>最近一次右键的画布坐标，供菜单里的"添加"操作定位。</summary>
     private Point _menuPosition;
@@ -140,9 +142,13 @@ public partial class DiagramCanvasControl : UserControl
             SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
 
             _layoutLoaded = true;
+            // Loaded 会随控件重新并入可视树而多次触发；布局只在首次载入，
+            // 否则每次重入都会经 Clear() 丢弃用户未保存的内存编辑
+            if (_initialLoadDone) return;
+            _initialLoadDone = true;
             await LoadLayoutAsync();
         }
-        catch { /* 兜底：已完成部分初始化，载入失败在上层 try-catch 中降级为示例布局 */ }
+        catch { /* async void 不允许未观察异常逃逸；初始化失败时保持当前状态 */ }
     }
 
     private static async void OnLayoutFilePathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -155,17 +161,24 @@ public partial class DiagramCanvasControl : UserControl
         catch { /* 载入失败由 LoadLayoutAsync 内部处理，此处吞掉 async void 的未观察异常 */ }
     }
 
-    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在或解析失败时图保持空白。</summary>
+    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在、解析失败或部件类型不可解析时保留当前图内容。</summary>
     private async Task LoadLayoutAsync()
     {
         try
         {
             var data = await LayoutStore.LoadAsync(EffectiveLayoutFilePath);
-            if (data is not null) Diagram.Load(data);
+            if (data is null) return;
+
+            // 先校验全部部件类型可解析，再整体载入：
+            // Diagram.Load 会先 Clear，若中途因未知 NodeKind 抛异常会留下"半载入"画布
+            foreach (var nd in data.Nodes)
+                NodeDefinitionRegistry.Resolve(nd.Kind);
+
+            Diagram.Load(data);
         }
         catch
         {
-            // 载入失败时图保持空白（已清空），宿主可通过 Save 生成新布局
+            // 载入失败：保留载入前的图内容，宿主可通过"保存布局"重建文件
         }
     }
 
@@ -193,15 +206,27 @@ public partial class DiagramCanvasControl : UserControl
     {
         if (parameter is not NodeKind kind) return;
 
-        var node = Diagram.AddNode(kind, _menuPosition.X, _menuPosition.Y);
+        var pos = ClampPlacement(kind, _menuPosition);
+        var node = Diagram.AddNode(kind, pos.X, pos.Y);
         Diagram.SelectedNode = node;
         StatusChanged?.Invoke($"已添加部件：{node.Label}");
+    }
+
+    /// <summary>放置坐标按部件占位（新建部件 Scale=1，取基准尺寸）钳位到画布内，避免新部件初始即越界。</summary>
+    private Point ClampPlacement(NodeKind kind, Point pos)
+    {
+        var (w, h) = NodeDefinitionRegistry.Resolve(kind).BaseSize;
+        return new Point(
+            Math.Clamp(pos.X, 0, Math.Max(0, Diagram.CanvasWidth - w)),
+            Math.Clamp(pos.Y, 0, Math.Max(0, Diagram.CanvasHeight - h)));
     }
 
     private void AddConnection()
     {
         var start = _menuPosition;
-        var conn = Diagram.AddFreeConnection(start, new Point(start.X + 120, start.Y));
+        // 自由端初始坐标同样钳位到画布内，避免落在画布外无法拾取
+        var end = new Point(Math.Min(start.X + 120, Diagram.CanvasWidth), start.Y);
+        var conn = Diagram.AddFreeConnection(start, end);
         Diagram.SelectedConnection = conn;
         StatusChanged?.Invoke("已添加管路，拖动两端端点吸附到部件端口");
     }
@@ -277,7 +302,7 @@ public partial class DiagramCanvasControl : UserControl
 
         if (PendingNodeKind is NodeKind kind)
         {
-            var pos = e.GetPosition(DiagramCanvas);
+            var pos = ClampPlacement(kind, e.GetPosition(DiagramCanvas));
             var node = diagram.AddNode(kind, pos.X, pos.Y);
             PendingNodeKind = null;
 
