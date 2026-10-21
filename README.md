@@ -19,7 +19,7 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 dotnet add package FlowChartKit
 ```
 
-要求 .NET 10（`net10.0-windows`）、WPF。除 WPF 框架引用外零第三方依赖。
+支持 .NET 6 / 7 / 8 / 9 / 10（`net6.0-windows` ~ `net10.0-windows`）、WPF。除 WPF 框架引用外零第三方依赖。
 
 ## 快速接入
 

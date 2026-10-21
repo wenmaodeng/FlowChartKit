@@ -1,5 +1,22 @@
 # FlowChartKit 发布说明
 
+## 1.1.0（2026-10-21）
+
+扩展目标框架，兼容 .NET 6 至 .NET 10，公共 API 与行为无变更。
+
+### 变更内容
+
+- **多目标框架**：库工程由 `net10.0-windows` 单目标改为多目标，包内同时提供：
+  `net6.0-windows` / `net7.0-windows` / `net8.0-windows` / `net9.0-windows` / `net10.0-windows`。
+- **消费方式不变**：宿主工程按自身 TFM 自动选配对应的 `lib` 目录，无需任何额外配置或条件引用。
+- **依赖不变**：仍仅依赖 WPF 框架引用（`Microsoft.WindowsDesktop.App.WPF`），零第三方依赖；XML 文档随各 TFM 分发。
+- **非 Windows 构建**：新增 `EnableWindowsTargeting=true`，便于在非 Windows 环境（如 Linux CI）构建 Windows TFM。
+
+### 兼容性说明
+
+- 本次仅为框架目标扩展，**无 API 增删、无行为变更**，1.0.0 的工程可直接升级，无需改代码。
+- net6 / net7 已处于微软官方支持终止（EOL）状态，构建时相关 EOL 警告已抑制（`CheckEolTargetFramework=false`）；生产环境建议使用 net8 及以上。
+
 ## 1.0.0（2026-10-21）
 
 首个正式版本。WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管路 + 流向的编辑与运行双模式画布。

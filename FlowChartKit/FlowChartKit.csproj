@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFrameworks>net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
+    <!-- 允许在非 Windows 环境也能构建 Windows TFM（CI 若换到 Linux 时仍可用） -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- net6/7 已 EOL，抑制 NETSDK1138 过期框架警告 -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
 
     <!-- 库身份与版本：宿主升级依据（SemVer），API 变更时递增并同步 CHANGELOG -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <PackageId>FlowChartKit</PackageId>
     <Authors>wenmaodeng</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
