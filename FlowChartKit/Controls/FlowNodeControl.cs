@@ -12,12 +12,14 @@ namespace FlowChartKit.Controls;
 /// <summary>
 /// 部件控件（继承 Control）：不使用 ControlTemplate，通过 OnRender 自绘。
 /// DataContext 应为 NodeViewModel；位置由 ItemsControl 的 ItemContainerStyle 绑定 Canvas.Left/Top。
-/// 支持拖拽移动、选中态、端口吸附高亮。
+/// 支持拖拽移动、选中态、端口吸附高亮，编辑模式下显示同类部件序号徽章。
 /// </summary>
 public class FlowNodeControl : Control
 {
     private static readonly Brush LabelBrush = CreateBrush(0x33, 0x51, 0x7A);
     private static readonly Pen SelectionPen = CreateSelectionPen();
+    // 序号徽章描边：复用 NodeRenderer 的冻结画刷与工厂（同程序集 internal 可见）
+    private static readonly Pen NumberBadgePen = NodeRenderer.MakePen(NodeRenderer.Outline, 1.2);
 
     /// <summary>标签文字相对图形底边的下移量：让开端口圆点与管路端点手柄。</summary>
     private const double LabelGap = 8;
@@ -34,6 +36,11 @@ public class FlowNodeControl : Control
     // 标签文本缓存：仅在 Label 或 DPI 变化时重建，避免每次 OnRender 构造 FormattedText
     private FormattedText? _labelText;
     private double _labelTextDpi = -1;
+
+    // 序号文本缓存：仅在数值或 DPI 变化时重建
+    private FormattedText? _numText;
+    private int _numTextValue = -1;
+    private double _numTextDpi = -1;
 
     // 宿主 ItemsControl 的 Canvas 面板缓存：可视树祖先不变，无需每次鼠标事件都遍历
     private Canvas? _itemsCanvas;
@@ -95,6 +102,10 @@ public class FlowNodeControl : Control
                 InvalidateVisual();
                 break;
 
+            case nameof(NodeViewModel.KindNumber):
+                InvalidateVisual();
+                break;
+
             // 缩放后同步控件占位尺寸并重绘
             case nameof(NodeViewModel.ShapeWidth):
             case nameof(NodeViewModel.ShapeHeight):
@@ -145,6 +156,9 @@ public class FlowNodeControl : Control
         if (vm is null) return;
         EnsureDiagramHook();
 
+        // DPI 每帧只取一次，供序号与标签两处文本缓存判定使用
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+
         // 部件外观：NodeRenderer 按该类型的基准尺寸绘制，这里用缩放系数映射到实际尺寸
         dc.PushTransform(new ScaleTransform(vm.Scale, vm.Scale));
         NodeRenderer.Render(dc, vm.Kind);
@@ -154,7 +168,7 @@ public class FlowNodeControl : Control
         if (vm.IsSelected)
             dc.DrawRectangle(null, SelectionPen, new Rect(0, 0, vm.ShapeWidth, vm.ShapeHeight));
 
-        // 端口：编辑模式下全部常显；关闭编辑模式后不绘制（此时也禁止拖动，用不到端口）
+        // 端口与序号徽章：编辑模式下常显；关闭编辑模式后不绘制（此时也禁止拖动，用不到端口）
         if (_diagram?.IsEditable == true)
         {
             foreach (var port in vm.Ports)
@@ -165,10 +179,15 @@ public class FlowNodeControl : Control
                 if (port.IsHighlighted)
                     NodeRenderer.RenderPortHighlight(dc, cx, cy);
             }
+
+            // 同类部件序号徽章（左上角；不随部件缩放，文本缓存复用）
+            var badgeCenter = new Point(9, 9);
+            dc.DrawEllipse(Brushes.White, NumberBadgePen, badgeCenter, 8, 8);
+            var numFt = GetNumberText(vm.KindNumber, dpi);
+            dc.DrawText(numFt, new Point(badgeCenter.X - numFt.Width / 2, badgeCenter.Y - numFt.Height / 2));
         }
 
         // 标签（缓存 FormattedText，仅 Label/DPI 变化时重建）
-        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         if (_labelText is null || _labelTextDpi != dpi)
         {
             _labelText = new FormattedText(
@@ -183,6 +202,25 @@ public class FlowNodeControl : Control
         }
         double tx = (vm.ShapeWidth - _labelText.Width) / 2;
         dc.DrawText(_labelText, new Point(Math.Max(0, tx), vm.ShapeHeight + LabelGap));
+    }
+
+    /// <summary>序号文本按数值/DPI 缓存，避免每帧构造 FormattedText。</summary>
+    private FormattedText GetNumberText(int value, double dpi)
+    {
+        if (_numText is null || _numTextValue != value || _numTextDpi != dpi)
+        {
+            _numText = new FormattedText(
+                value.ToString(),
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Arial"),
+                9.0,
+                NodeRenderer.Accent,
+                dpi);
+            _numTextValue = value;
+            _numTextDpi = dpi;
+        }
+        return _numText;
     }
 
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)

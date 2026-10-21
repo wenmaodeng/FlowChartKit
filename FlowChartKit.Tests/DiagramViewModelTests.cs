@@ -156,4 +156,93 @@ public class DiagramViewModelTests
         Assert.Equal(1600, d.CanvasWidth);
         Assert.Equal(1200, d.CanvasHeight);
     }
+
+    [Fact]
+    public void KindNumber_NumberedByKindInCollectionOrder()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var c1 = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var v1 = d.AddNode(NodeKind.ThreeWayValve, 0, 0);
+        var c2 = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var v2 = d.AddNode(NodeKind.ThreeWayValve, 0, 0);
+        var c3 = d.AddNode(NodeKind.SampleCup, 0, 0);
+
+        // 同类型按集合顺序 1,2,3；不同类型各自独立计数
+        Assert.Equal(1, c1.KindNumber);
+        Assert.Equal(2, c2.KindNumber);
+        Assert.Equal(3, c3.KindNumber);
+        Assert.Equal(1, v1.KindNumber);
+        Assert.Equal(2, v2.KindNumber);
+    }
+
+    [Fact]
+    public void KindNumber_RenumbersAfterRemoval()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var a = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var b = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var c = d.AddNode(NodeKind.SampleCup, 0, 0);
+
+        d.RemoveNode(b);
+
+        Assert.Equal(1, a.KindNumber);
+        Assert.Equal(2, c.KindNumber);
+    }
+
+    [Fact]
+    public void KindNumber_RestoredFromLoadOrder()
+    {
+        var d = new DiagramViewModel(800, 600);
+        d.AddNode(NodeKind.SampleCup, 0, 0);
+        d.AddNode(NodeKind.SampleCup, 50, 0);
+
+        // 保存时写入当前序号，载入复原
+        var restored = DiagramViewModel.FromData(d.ToData());
+
+        Assert.Equal(new[] { 1, 2 }, restored.Nodes.Select(n => n.KindNumber));
+    }
+
+    [Fact]
+    public void KindNumber_LoadPrefersStoredNumber_FallsBackToDerived()
+    {
+        var data = new DiagramData();
+        data.Nodes.Add(new NodeData { Id = "a", Kind = NodeKind.SampleCup, X = 0, Y = 0, Number = 5 });
+        data.Nodes.Add(new NodeData { Id = "b", Kind = NodeKind.SampleCup, X = 50, Y = 0 }); // 旧存档无编号字段
+
+        var d = DiagramViewModel.FromData(data);
+
+        Assert.Equal(5, d.Nodes[0].KindNumber); // 存档值优先
+        Assert.Equal(2, d.Nodes[1].KindNumber); // 缺失时回退为按集合顺序推导
+    }
+
+    [Fact]
+    public void FindNode_MatchesKindAndKindNumber()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var c1 = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var c2 = d.AddNode(NodeKind.SampleCup, 50, 0);
+        d.AddNode(NodeKind.ThreeWayValve, 100, 0);
+
+        Assert.Same(c1, d.FindNode(NodeKind.SampleCup, 1));
+        Assert.Same(c2, d.FindNode(NodeKind.SampleCup, 2));
+        Assert.Null(d.FindNode(NodeKind.SampleCup, 3));   // 序号不存在
+        Assert.Null(d.FindNode(NodeKind.PumpModule, 1));  // 类型不存在
+    }
+
+    [Fact]
+    public void NodeState_SetRaisesPropertyChanged_DuplicateSuppressed()
+    {
+        var node = new NodeViewModel(NodeKind.SampleCup);
+        int count = 0;
+        node.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NodeViewModel.State)) count++;
+        };
+
+        node.State = "运行";
+        node.State = "运行"; // 相同值不重复通知
+
+        Assert.Equal(1, count);
+        Assert.Equal("运行", node.State);
+    }
 }

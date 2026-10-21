@@ -136,10 +136,11 @@ public partial class DiagramCanvasControl : UserControl
     {
         try
         {
-            // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge）。
+            // 供宿主 VM 以 OneWayToSource 绑定取走后调用（见 DirectionBridge / StateBridge）。
             // 必须在 Loaded（绑定已附着）后赋值：构造期写入的本地值会被随后附着的绑定覆盖，
             // 这里赋值会作为目标值变更推送到 VM 侧属性。
             SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
+            SetValue(SetNodeStateByNumberCommandProperty, new RelayCommand(ExecuteSetNodeState));
 
             _layoutLoaded = true;
             // Loaded 会随控件重新并入可视树而多次触发；布局只在首次载入，

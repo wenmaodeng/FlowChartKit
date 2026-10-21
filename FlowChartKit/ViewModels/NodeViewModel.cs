@@ -95,8 +95,26 @@ public class NodeViewModel : ObservableBase
 
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
 
+    private int _kindNumber;
+    /// <summary>同类部件内的序号：按 <see cref="DiagramViewModel.Nodes"/> 集合中同类型节点的先后顺序从 1 编号，
+    /// 添加/移除时由图模型重排；保存布局时写入存档，载入时存档值优先（缺失时回退为按顺序推导）。</summary>
+    public int KindNumber
+    {
+        get => _kindNumber;
+        internal set => Set(ref _kindNumber, value);
+    }
+
     /// <summary>所属图模型（由 DiagramViewModel.AddNode 设置）。</summary>
     public DiagramViewModel? Diagram { get; internal set; }
+
+    private object? _state;
+    /// <summary>宿主自定义的状态载荷：语义由宿主定义，控件不解释；
+    /// 经画布控件的 SetNodeStateByNumberCommand 桥接设置（参照管路的 SetDirectionByNumberCommand），也可直接赋值。</summary>
+    public object? State
+    {
+        get => _state;
+        set => Set(ref _state, value);
+    }
 
     /// <summary>端口列表（构造时按部件定义生成，运行期不增删——增删不会触发索引/重算，序列化也不感知）。</summary>
     public IReadOnlyList<PortViewModel> Ports { get; }

@@ -147,6 +147,7 @@ public class DiagramViewModel : ObservableBase
         node.PropertyChanged += OnNodePropertyChanged;
         node.GeometryChanged += OnNodeGeometryChanged;
         Nodes.Add(node);
+        RenumberNodes();
         return node;
     }
 
@@ -218,6 +219,7 @@ public class DiagramViewModel : ObservableBase
         node.GeometryChanged -= OnNodeGeometryChanged;
         node.Diagram = null; // 解除反向引用：被移除的节点不得再操作本图
         Nodes.Remove(node);
+        RenumberNodes();
     }
 
     private void OnNodePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -239,6 +241,18 @@ public class DiagramViewModel : ObservableBase
         if (_connectionsByNode.TryGetValue(node, out var list))
             for (int i = 0; i < list.Count; i++)
                 list[i].Recompute();
+    }
+
+    /// <summary>同类部件按 Nodes 集合顺序从 1 重排序号（添加/移除后调用；非拖动热路径，整表一遍遍历即可）。</summary>
+    private void RenumberNodes()
+    {
+        var counters = new Dictionary<NodeKind, int>();
+        foreach (var n in Nodes)
+        {
+            counters.TryGetValue(n.Kind, out var next);
+            n.KindNumber = ++next;
+            counters[n.Kind] = next;
+        }
     }
 
     // ---- 部件 → 管路 索引 ----
@@ -315,6 +329,10 @@ public class DiagramViewModel : ObservableBase
     public PortViewModel? FindPort(NodeViewModel node, string portId)
         => node.Ports.FirstOrDefault(p => p.Id == portId);
 
+    /// <summary>按类型与同类序号查找部件（序号与画布上的序号徽章一致，从 1 开始）；未找到返回 null。</summary>
+    public NodeViewModel? FindNode(NodeKind kind, int number)
+        => Nodes.FirstOrDefault(n => n.Kind == kind && n.KindNumber == number);
+
     // ---- 端点拖拽编排（由管路控件驱动，吸附/高亮/重算集中在这里） ----
 
     /// <summary>开始拖动管路某端端点。</summary>
@@ -355,7 +373,8 @@ public class DiagramViewModel : ObservableBase
                 Label = n.Label,
                 X = n.X,
                 Y = n.Y,
-                Scale = n.Scale
+                Scale = n.Scale,
+                Number = n.KindNumber
             });
         }
 
@@ -413,6 +432,14 @@ public class DiagramViewModel : ObservableBase
             var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
             node.Scale = nd.Scale > 0 ? nd.Scale : 1;
             map[nd.Id] = node;
+        }
+
+        // 存档编号在全部部件就位后统一回填：AddNode 的顺序重排会覆盖逐个赋值；
+        // 旧存档无编号（0）的部件保留推导值
+        foreach (var nd in data.Nodes)
+        {
+            if (nd.Number > 0 && map.TryGetValue(nd.Id, out var node))
+                node.KindNumber = nd.Number;
         }
 
         foreach (var cd in data.Connections)

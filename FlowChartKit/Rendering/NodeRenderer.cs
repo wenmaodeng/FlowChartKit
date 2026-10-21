@@ -36,7 +36,7 @@ public static class NodeRenderer
         return brush;
     }
 
-    private static Pen MakePen(Brush brush, double thickness)
+    internal static Pen MakePen(Brush brush, double thickness)
     {
         var pen = new Pen(brush, thickness);
         pen.LineJoin = PenLineJoin.Round;
