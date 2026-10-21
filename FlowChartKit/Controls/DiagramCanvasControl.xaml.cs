@@ -51,6 +51,10 @@ public partial class DiagramCanvasControl : UserControl
         nameof(AllowContextMenu), typeof(bool), typeof(DiagramCanvasControl),
         new PropertyMetadata(true));
 
+    public static readonly DependencyProperty ClearLayoutRequiresConfirmProperty = DependencyProperty.Register(
+        nameof(ClearLayoutRequiresConfirm), typeof(bool), typeof(DiagramCanvasControl),
+        new PropertyMetadata(true));
+
     private bool _layoutLoaded;
     private bool _initialLoadDone;
 
@@ -68,6 +72,16 @@ public partial class DiagramCanvasControl : UserControl
     {
         get => (bool)GetValue(AllowContextMenuProperty);
         set => SetValue(AllowContextMenuProperty, value);
+    }
+
+    /// <summary>
+    /// 清空布局前是否弹出确认对话框（默认 true）。清空为破坏性操作且不可恢复，
+    /// 默认要求确认以防现场误触；宿主如需一键清空可置为 false。
+    /// </summary>
+    public bool ClearLayoutRequiresConfirm
+    {
+        get => (bool)GetValue(ClearLayoutRequiresConfirmProperty);
+        set => SetValue(ClearLayoutRequiresConfirmProperty, value);
     }
 
     public DiagramCanvasControl()
@@ -215,6 +229,19 @@ public partial class DiagramCanvasControl : UserControl
 
     private void ClearLayout()
     {
+        // 破坏性操作确认：清空不可恢复，默认弹窗防误触（宿主可经 ClearLayoutRequiresConfirm 关闭）
+        if (ClearLayoutRequiresConfirm)
+        {
+            const string message = "确定要清空画布上的所有部件与管路吗？";
+            var result = Window.GetWindow(this) is { } owner
+                ? MessageBox.Show(owner, message, "清空布局", MessageBoxButton.OKCancel, MessageBoxImage.Warning)
+                : MessageBox.Show(message, "清空布局", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (result != MessageBoxResult.OK)
+            {
+                StatusChanged?.Invoke("已取消清空布局");
+                return;
+            }
+        }
         Diagram.Clear();
         StatusChanged?.Invoke("已清空布局");
     }

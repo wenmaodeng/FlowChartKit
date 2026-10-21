@@ -457,10 +457,15 @@ public class DiagramViewModel : ObservableBase
                 node.KindNumber = nd.Number;
         }
 
+        // 缺编号管路按存档最大编号递增分配（原语义：始终取当前最大+1），预扫一次避免逐条全表扫描
+        int nextConnNumber = 0;
+        foreach (var cd in data.Connections)
+            if (cd.Number > nextConnNumber) nextConnNumber = cd.Number;
+
         foreach (var cd in data.Connections)
         {
             var conn = new ConnectionViewModel(this, cd.Id) { Direction = cd.Direction };
-            conn.Number = cd.Number > 0 ? cd.Number : NextNumber();
+            conn.Number = cd.Number > 0 ? cd.Number : ++nextConnNumber;
 
             if (cd.SourceNodeId is { } snId && map.TryGetValue(snId, out var sn))
             {

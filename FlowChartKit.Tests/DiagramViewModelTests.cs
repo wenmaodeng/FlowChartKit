@@ -245,4 +245,45 @@ public class DiagramViewModelTests
         Assert.Equal(1, count);
         Assert.Equal("运行", node.State);
     }
+
+    [Fact]
+    public void Load_AssignsMissingConnectionNumbers_AfterStoredMax()
+    {
+        var data = new DiagramData();
+        data.Connections.Add(new ConnectionData { Id = "c1", SourceFreeX = 10, SourceFreeY = 10, TargetFreeX = 100, TargetFreeY = 10, Number = 3 });
+        data.Connections.Add(new ConnectionData { Id = "c2", SourceFreeX = 10, SourceFreeY = 50, TargetFreeX = 100, TargetFreeY = 50 }); // 旧存档缺编号
+        data.Connections.Add(new ConnectionData { Id = "c3", SourceFreeX = 10, SourceFreeY = 90, TargetFreeX = 100, TargetFreeY = 90, Number = 5 });
+
+        var d = DiagramViewModel.FromData(data);
+
+        Assert.Equal(3, d.Connections.Single(c => c.Id == "c1").Number);
+        Assert.Equal(6, d.Connections.Single(c => c.Id == "c2").Number); // 存档最大 5 之后递增
+        Assert.Equal(5, d.Connections.Single(c => c.Id == "c3").Number);
+    }
+
+    [Fact]
+    public void Load_AssignsSequentialNumbers_WhenAllMissing()
+    {
+        var data = new DiagramData();
+        for (int i = 0; i < 3; i++)
+            data.Connections.Add(new ConnectionData { Id = $"c{i}", SourceFreeX = 10, SourceFreeY = 10 + i * 40, TargetFreeX = 100, TargetFreeY = 10 + i * 40 });
+
+        var d = DiagramViewModel.FromData(data);
+
+        // 全部缺编号时按存档顺序依次 1,2,3
+        Assert.Equal(new[] { 1, 2, 3 }, d.Connections.OrderBy(c => c.Id).Select(c => c.Number));
+    }
+
+    [Fact]
+    public void AddConnection_AfterLoad_ContinuesFromStoredMax()
+    {
+        var data = new DiagramData();
+        data.Connections.Add(new ConnectionData { Id = "c1", SourceFreeX = 10, SourceFreeY = 10, TargetFreeX = 100, TargetFreeY = 10, Number = 7 });
+
+        var d = DiagramViewModel.FromData(data);
+        var added = d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+
+        // 载入后运行期新增：编号从存档最大值之后继续，与载入分配机制衔接
+        Assert.Equal(8, added.Number);
+    }
 }
