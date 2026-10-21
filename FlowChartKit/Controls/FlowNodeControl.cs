@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 
@@ -32,6 +33,10 @@ public class FlowNodeControl : Control
     private bool _dragging;
     private bool _dragMoved;
     private Point _dragStartCanvas;
+
+    // 单击退避：目录同时声明单击+双击的部件，单击挂起至双击判定窗口之外，双击时取消（防双击误触单击）
+    private DispatcherTimer? _clickBackoffTimer;
+    private NodeClickEventArgs? _pendingClickArgs;
 
     public static readonly RoutedEvent NodeClickEvent = EventManager.RegisterRoutedEvent(
         nameof(NodeClick), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(FlowNodeControl));
@@ -65,6 +70,9 @@ public class FlowNodeControl : Control
     public FlowNodeControl()
     {
         DataContextChanged += OnDataContextChanged;
+        // 挂起的单击属于当前部件：脱离可视树或切换上下文时必须取消（自订阅自身，无外部泄漏）
+        Unloaded += (_, _) => CancelPendingClick();
+        DataContextChanged += (_, _) => CancelPendingClick();
         Background = Brushes.Transparent;
     }
 
@@ -281,6 +289,22 @@ public class FlowNodeControl : Control
         base.OnMouseLeftButtonDown(e);
         if (_vm is null) return;
 
+        // 双击：仅运行模式按事件目录解析；取消已开始的拖拽意图与挂起的单击，
+        // 避免双击的第二次按下残留拖拽状态、或先前单击在双击判定窗口内误触发
+        if (e.ClickCount == 2 && Diagram is { IsEditable: false })
+        {
+            CancelPendingClick();
+            _dragging = false;
+            _dragMoved = true; // 让随后的 Up 不再走默认单击路径
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            Cursor = Cursors.Arrow;
+
+            var dblSpec = NodeEventSpec.Resolve(NodeDefinitionRegistry.Resolve(_vm.Kind).Events, NodeEventGesture.DoubleClick);
+            if (dblSpec is not null)
+                RaiseEvent(new NodeClickEventArgs(_vm, NodeEventGesture.DoubleClick, dblSpec.EventId));
+            return;
+        }
+
         // 点击/拖动共用起点：非编辑模式同样记录，抬起时未超阈值即视为点击
         _dragMoved = false;
 
@@ -355,7 +379,64 @@ public class FlowNodeControl : Control
 
         // 点击（未拖动）：仅运行模式（非编辑）上抛业务事件；编辑模式下点击只承担选中/拖拽
         if (!_dragMoved && _vm is not null && Diagram is not { IsEditable: true })
-            RaiseEvent(new NodeClickEventArgs(_vm));
+        {
+            var catalog = NodeDefinitionRegistry.Resolve(_vm.Kind).Events;
+            if (catalog.Count == 0)
+            {
+                // 未启用事件目录：默认单击语义（EventId=null），与既有行为向后兼容
+                RaiseEvent(new NodeClickEventArgs(_vm));
+            }
+            else
+            {
+                // 目录非空：仅目录声明过的手势才触发
+                var spec = NodeEventSpec.Resolve(catalog, NodeEventGesture.Click);
+                if (spec is not null)
+                {
+                    var args = new NodeClickEventArgs(_vm, NodeEventGesture.Click, spec.EventId);
+                    // 同时声明双击的部件：单击退避，双击将在判定窗口内取消挂起的单击
+                    if (NodeEventSpec.NeedsClickBackoff(catalog))
+                        DeferClick(args);
+                    else
+                        RaiseEvent(args);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 挂起单击至双击判定窗口（系统双击间隔）之外：窗口内发生第二次按下（双击）则取消，
+    /// 否则计时到点后按普通单击上抛。仅"单击+双击并存"的部件走此路径。
+    /// </summary>
+    private void DeferClick(NodeClickEventArgs args)
+    {
+        _pendingClickArgs = args;
+        if (_clickBackoffTimer is null)
+        {
+            _clickBackoffTimer = new DispatcherTimer(DispatcherPriority.Input)
+            {
+                // WPF 未暴露双击时间间隔，经 Win32 读取（用户控制面板中的"双击速度"）
+                Interval = TimeSpan.FromMilliseconds(GetDoubleClickTime()),
+            };
+            _clickBackoffTimer.Tick += FlushPendingClick;
+        }
+        _clickBackoffTimer.Stop();
+        _clickBackoffTimer.Start();
+    }
+
+    private void FlushPendingClick(object? sender, EventArgs e)
+    {
+        _clickBackoffTimer?.Stop();
+        var args = _pendingClickArgs;
+        _pendingClickArgs = null;
+        // 上下文可能在挂起期间被切换（如 DataContext 更换），只上抛仍属于当前部件的挂起事件
+        if (args is not null && ReferenceEquals(_vm, args.Node))
+            RaiseEvent(args);
+    }
+
+    private void CancelPendingClick()
+    {
+        _clickBackoffTimer?.Stop();
+        _pendingClickArgs = null;
     }
 
     /// <summary>
@@ -394,4 +475,7 @@ public class FlowNodeControl : Control
         pen.Freeze();
         return pen;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
 }

@@ -29,6 +29,13 @@ public interface INodeDefinition
 
     /// <summary>在基准尺寸（未缩放）坐标系内绘制部件外观；缩放由调用方通过 Transform 施加。</summary>
     void Render(DrawingContext dc);
+
+    /// <summary>
+    /// 事件目录：声明该部件支持哪些手势及对应语义事件（见 <see cref="NodeEventSpec"/>）。
+    /// 默认空目录 = 未启用事件目录，控件按默认单击语义上抛（EventId 为 null，向后兼容）；
+    /// 目录非空后仅目录中声明过的手势才触发事件。同一手势只应声明一个条目。
+    /// </summary>
+    IReadOnlyList<NodeEventSpec> Events => [];
 }
 
 /// <summary>

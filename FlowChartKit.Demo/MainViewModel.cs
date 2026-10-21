@@ -46,8 +46,11 @@ public class MainViewModel : ObservableBase
         {
             if (p is not NodeClickEventArgs args) return;
             var node = args.Node;
-            StatusText = $"点击部件：{NodeDefinitionRegistry.Resolve(node.Kind).DisplayName} #{node.KindNumber}"
-                         + (node.State is null ? "" : $"（State={node.State}）");
+            // 事件目录启用后按 EventId 语义分发；未声明目录的部件 EventId 为 null
+            var gestureText = args.EventId is null ? "" : $" [{args.EventId}]";
+            StatusText = $"{(args.Gesture == NodeEventGesture.DoubleClick ? "双击" : "点击")}部件：" +
+                         $"{NodeDefinitionRegistry.Resolve(node.Kind).DisplayName} #{node.KindNumber}{gestureText}" +
+                         (node.State is null ? "" : $"（State={node.State}）");
         });
 
         // 设置部件状态：与设置流向同一模式——控件在 Loaded 时把内置命令经 OneWayToSource 灌入，

@@ -12,11 +12,25 @@ namespace FlowChartKit;
 public sealed class NodeClickEventArgs : RoutedEventArgs
 {
     public NodeClickEventArgs(NodeViewModel node)
+        : this(node, NodeEventGesture.Click, eventId: null)
+    {
+    }
+
+    public NodeClickEventArgs(NodeViewModel node, NodeEventGesture gesture, string? eventId)
     {
         Node = node;
+        Gesture = gesture;
+        EventId = eventId;
         RoutedEvent = Controls.FlowNodeControl.NodeClickEvent;
     }
 
     /// <summary>被点击的部件。</summary>
     public NodeViewModel Node { get; }
+
+    /// <summary>触发事件的手势。</summary>
+    public NodeEventGesture Gesture { get; }
+
+    /// <summary>语义事件标识：部件定义声明了事件目录时为目录条目值；
+    /// 未声明目录的默认单击为 null（向后兼容），宿主按 null 或自带语义分发。</summary>
+    public string? EventId { get; }
 }

@@ -174,4 +174,62 @@ public class NodeDefinitionTests
         public IReadOnlyList<PortSpec> Ports => ports;
         public void Render(DrawingContext dc) { }
     }
+
+    // ── 事件目录（NodeEventSpec）──
+
+    [Fact]
+    public void Events_DefaultInterfaceImplementation_IsEmptyCatalog()
+    {
+        // 未声明 Events 的定义走默认接口实现：空目录 = 未启用事件目录（默认单击语义）
+        Assert.Empty(NodeDefinitionRegistry.Resolve(NodeKind.SampleCup).Events);
+    }
+
+    [Fact]
+    public void NodeEventSpec_Resolve_MatchesGesture()
+    {
+        var click = new NodeEventSpec(NodeEventGesture.Click, "ValveInfo");
+        var dbl = new NodeEventSpec(NodeEventGesture.DoubleClick, "ToggleState");
+        IReadOnlyList<NodeEventSpec> catalog = [click, dbl];
+
+        Assert.Same(click, NodeEventSpec.Resolve(catalog, NodeEventGesture.Click));
+        Assert.Same(dbl, NodeEventSpec.Resolve(catalog, NodeEventGesture.DoubleClick));
+    }
+
+    [Fact]
+    public void NodeEventSpec_Resolve_EmptyOrUnmatched_ReturnsNull()
+    {
+        Assert.Null(NodeEventSpec.Resolve([], NodeEventGesture.Click));
+
+        IReadOnlyList<NodeEventSpec> clickOnly = [new(NodeEventGesture.Click, "A")];
+        Assert.Null(NodeEventSpec.Resolve(clickOnly, NodeEventGesture.DoubleClick));
+    }
+
+    [Fact]
+    public void NodeEventSpec_Resolve_TakesFirstMatch_WhenDuplicated()
+    {
+        // 同一手势重复声明只取第一个——唯一性由目录作者负责，解析器保持确定性
+        IReadOnlyList<NodeEventSpec> catalog =
+        [
+            new(NodeEventGesture.Click, "First"),
+            new(NodeEventGesture.Click, "Second"),
+        ];
+
+        Assert.Equal("First", NodeEventSpec.Resolve(catalog, NodeEventGesture.Click)!.EventId);
+    }
+
+    [Fact]
+    public void NodeEventSpec_NeedsClickBackoff_OnlyWhenBothGesturesDeclared()
+    {
+        // 仅双击 / 仅单击 / 空目录：单击即时触发，无需退避
+        Assert.False(NodeEventSpec.NeedsClickBackoff([new(NodeEventGesture.DoubleClick, "A")]));
+        Assert.False(NodeEventSpec.NeedsClickBackoff([new(NodeEventGesture.Click, "A")]));
+        Assert.False(NodeEventSpec.NeedsClickBackoff([]));
+
+        // 单击+双击并存：双击必先产生一次单击，需退避由双击取消
+        Assert.True(NodeEventSpec.NeedsClickBackoff(
+        [
+            new(NodeEventGesture.Click, "A"),
+            new(NodeEventGesture.DoubleClick, "B"),
+        ]));
+    }
 }

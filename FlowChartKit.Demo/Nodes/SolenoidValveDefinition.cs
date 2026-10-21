@@ -33,6 +33,13 @@ public sealed class SolenoidValveDefinition : INodeDefinition
         new PortSpec("R", 1, 0.5, PortDir.Right),
     ];
 
+    /// <summary>事件目录演示：声明后仅这两个手势会上抛事件，宿主按 EventId 分发。</summary>
+    public IReadOnlyList<NodeEventSpec> Events { get; } =
+    [
+        new(NodeEventGesture.Click, "ValveInfo", "查看阀门信息"),
+        new(NodeEventGesture.DoubleClick, "ToggleState", "切换开关状态"),
+    ];
+
     public void Render(DrawingContext dc)
     {
         // 蝶形阀体（两个顶点相接的三角形）
