@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using FlowChartKit;
+using FlowChartKit.Demo.Nodes;
 using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 using Xunit;
@@ -21,7 +22,7 @@ public class NodeDefinitionTests
     }
 
     [Fact]
-    public void BuiltInDefinitions_HaveValidMetadata()
+    public void RegisteredDefinitions_HaveValidMetadata()
     {
         foreach (var kind in Enum.GetValues<NodeKind>())
         {
@@ -44,7 +45,7 @@ public class NodeDefinitionTests
     }
 
     [Fact]
-    public void BuiltInDefinitions_RenderWithoutException()
+    public void RegisteredDefinitions_RenderWithoutException()
     {
         foreach (var kind in Enum.GetValues<NodeKind>())
         {
@@ -59,11 +60,11 @@ public class NodeDefinitionTests
     }
 
     [Fact]
-    public void BuiltInDefinitions_RenderWithNodeContext_WithoutException()
+    public void RegisteredDefinitions_RenderWithNodeContext_WithoutException()
     {
         // 二参 DIM 默认委托一参实现：未 override 状态外观的定义经上下文调用必须照常渲染
-        var node = new NodeViewModel(NodeKind.SampleCup) { State = "任意宿主载荷" };
-        var def = NodeDefinitionRegistry.Resolve(NodeKind.SampleCup);
+        var node = new NodeViewModel(DemoNodeKinds.SampleCup) { State = "任意宿主载荷" };
+        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup);
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -91,7 +92,7 @@ public class NodeDefinitionTests
     [Fact]
     public void ThreeWayValve_HasThreePorts()
     {
-        var node = new NodeViewModel(NodeKind.ThreeWayValve);
+        var node = new NodeViewModel(DemoNodeKinds.ThreeWayValve);
 
         Assert.Equal("三通阀", node.Label);
         Assert.Equal(3, node.Ports.Count);
@@ -102,7 +103,7 @@ public class NodeDefinitionTests
     [Fact]
     public void PumpModule_HasNineDedicatedPorts()
     {
-        var def = NodeDefinitionRegistry.Resolve(NodeKind.PumpModule);
+        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.PumpModule);
         Assert.Equal(9, def.Ports.Count);
         Assert.Equal(["T", "L1", "L2", "R1", "R2", "B1", "B2", "B3", "B4"],
             def.Ports.Select(p => p.Id).ToArray());
@@ -111,18 +112,19 @@ public class NodeDefinitionTests
     [Fact]
     public void Register_OverrideAffectsNewNodes_UnregisterRestoresBuiltIn()
     {
-        // 用其他测试用不到的 Waste，且 finally 移除覆盖，避免污染共享注册表
-        var builtIn = NodeDefinitionRegistry.Resolve(NodeKind.Waste);
-        var custom = new TestDefinition(NodeKind.Waste, "自定义废液", (100, 120),
+        // 用内置层类型 Led 做覆盖：注销后真正回退内置定义（其余类型由 Demo 注册在覆盖层，
+        // Unregister 会直接移除而非回退，不能在此使用）
+        var builtIn = NodeDefinitionRegistry.Resolve(NodeKind.Led);
+        var custom = new TestDefinition(NodeKind.Led, "自定义灯", (100, 120),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         try
         {
             NodeDefinitionRegistry.Register(custom);
 
-            Assert.Same(custom, NodeDefinitionRegistry.Resolve(NodeKind.Waste));
+            Assert.Same(custom, NodeDefinitionRegistry.Resolve(NodeKind.Led));
 
-            var node = new NodeViewModel(NodeKind.Waste);
-            Assert.Equal("自定义废液", node.Label);
+            var node = new NodeViewModel(NodeKind.Led);
+            Assert.Equal("自定义灯", node.Label);
             Assert.Equal(100, node.BaseWidth);
             Assert.Equal(120, node.BaseHeight);
             Assert.Single(node.Ports);
@@ -130,19 +132,19 @@ public class NodeDefinitionTests
         }
         finally
         {
-            NodeDefinitionRegistry.Unregister(NodeKind.Waste);
+            NodeDefinitionRegistry.Unregister(NodeKind.Led);
         }
         // 注销自定义定义后回退内置定义，而非不可解析
-        Assert.Same(builtIn, NodeDefinitionRegistry.Resolve(NodeKind.Waste));
+        Assert.Same(builtIn, NodeDefinitionRegistry.Resolve(NodeKind.Led));
     }
 
     [Fact]
     public void Unregister_WithoutOverride_KeepsBuiltIn()
     {
-        var builtIn = NodeDefinitionRegistry.Resolve(NodeKind.Waste);
+        var builtIn = NodeDefinitionRegistry.Resolve(NodeKind.Led);
 
-        Assert.False(NodeDefinitionRegistry.Unregister(NodeKind.Waste)); // 没有自定义定义可移除
-        Assert.Same(builtIn, NodeDefinitionRegistry.Resolve(NodeKind.Waste)); // 内置定义不受影响
+        Assert.False(NodeDefinitionRegistry.Unregister(NodeKind.Led)); // 没有自定义定义可移除
+        Assert.Same(builtIn, NodeDefinitionRegistry.Resolve(NodeKind.Led)); // 内置定义不受影响
     }
 
     [Fact]
@@ -156,55 +158,54 @@ public class NodeDefinitionTests
         var customKind = (NodeKind)1002;
         var custom = new TestDefinition(customKind, "自定义", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
-        var wasteOverride = new TestDefinition(NodeKind.Waste, "覆盖废液", (10, 10),
+        var ledOverride = new TestDefinition(NodeKind.Led, "覆盖灯", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         try
         {
-            Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+            Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Led));
 
             NodeDefinitionRegistry.Register(custom);
-            NodeDefinitionRegistry.Register(wasteOverride);
+            NodeDefinitionRegistry.Register(ledOverride);
 
             // 覆盖注册的内置类型与新类型都归扩展（菜单分组依据）
-            Assert.False(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+            Assert.False(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Led));
             Assert.False(NodeDefinitionRegistry.IsBuiltIn(customKind));
-            Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Led));
         }
         finally
         {
             NodeDefinitionRegistry.Unregister(customKind);
-            NodeDefinitionRegistry.Unregister(NodeKind.Waste);
+            NodeDefinitionRegistry.Unregister(NodeKind.Led);
         }
 
         // 注销后自动回退内置
-        Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+        Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Led));
     }
 
     [Fact]
     public void All_MergesBuiltInsAndOverrides()
     {
-        var builtInCount = Enum.GetValues<NodeKind>().Length;
-        Assert.Equal(builtInCount, NodeDefinitionRegistry.All.Count);
+        // 初态 = 内置 Led + Demo 注册的覆盖层定义（含枚举外的电磁阀）
+        var initialCount = NodeDefinitionRegistry.All.Count;
 
         var customKind = (NodeKind)1001; // 枚举之外的自定义类型
         var custom = new TestDefinition(customKind, "自定义", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
-        var wasteOverride = new TestDefinition(NodeKind.Waste, "覆盖废液", (10, 10),
+        var ledOverride = new TestDefinition(NodeKind.Led, "覆盖灯", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         try
         {
             NodeDefinitionRegistry.Register(custom);
-            NodeDefinitionRegistry.Register(wasteOverride);
+            NodeDefinitionRegistry.Register(ledOverride);
 
             var all = NodeDefinitionRegistry.All;
-            Assert.Equal(builtInCount + 1, all.Count); // 新类型 +1；同类型覆盖不增量
+            Assert.Equal(initialCount + 1, all.Count); // 新类型 +1；同类型覆盖不增量
             Assert.Contains(all, d => ReferenceEquals(d, custom));
-            Assert.DoesNotContain(all, d => d.Kind == NodeKind.Waste && !ReferenceEquals(d, wasteOverride));
+            Assert.Contains(all, d => ReferenceEquals(d, ledOverride));
         }
         finally
         {
             NodeDefinitionRegistry.Unregister(customKind);
-            NodeDefinitionRegistry.Unregister(NodeKind.Waste);
+            NodeDefinitionRegistry.Unregister(NodeKind.Led);
         }
     }
 
@@ -225,7 +226,7 @@ public class NodeDefinitionTests
     public void Events_DefaultInterfaceImplementation_IsEmptyCatalog()
     {
         // 未声明 Events 的定义走默认接口实现：空目录 = 未启用事件目录（默认单击语义）
-        Assert.Empty(NodeDefinitionRegistry.Resolve(NodeKind.SampleCup).Events);
+        Assert.Empty(NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup).Events);
     }
 
     [Fact]
@@ -311,6 +312,45 @@ public class NodeDefinitionTests
     }
 
     [Fact]
+    public void Switch_InvokeEvent_TogglesState()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Switch);
+        var node = new NodeViewModel(NodeKind.Switch);
+
+        // 默认 Off → On → Off
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleSwitch");
+        Assert.Equal(SwitchState.On, node.State);
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleSwitch");
+        Assert.Equal(SwitchState.Off, node.State);
+    }
+
+    [Fact]
+    public void Switch_InvokeEvent_UnknownStateTreatedAsOff()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Switch);
+        var node = new NodeViewModel(NodeKind.Switch) { State = "宿主自定义载荷" };
+
+        // 未匹配约定态的 State 视为 Off：切换后为 On
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleSwitch");
+        Assert.Equal(SwitchState.On, node.State);
+    }
+
+    [Fact]
+    public void Switch_RenderWithoutException_AllStates()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Switch);
+        foreach (var state in new object?[] { null, "宿主自定义载荷", SwitchState.Off, SwitchState.On })
+        {
+            var node = new NodeViewModel(NodeKind.Switch) { State = state };
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+                def.Render(dc, node);
+            Assert.True(visual.ContentBounds.Width > 0 && visual.ContentBounds.Height > 0,
+                $"State={state} 渲染为空");
+        }
+    }
+
+    [Fact]
     public void Led_InvokeEvent_OtherGesturesNotConsumed()
     {
         var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
@@ -342,8 +382,8 @@ public class NodeDefinitionTests
     public void BuiltInDefinitions_InvokeEvent_DefaultNotConsumed()
     {
         // 未实现内置手势处理的定义（DIM 默认）：调用返回 false，事件照常上抛宿主
-        var def = NodeDefinitionRegistry.Resolve(NodeKind.SampleCup);
-        var node = new NodeViewModel(NodeKind.SampleCup);
+        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup);
+        var node = new NodeViewModel(DemoNodeKinds.SampleCup);
         Assert.False(def.InvokeEvent(node, NodeEventGesture.Click, "Any"));
         Assert.False(def.InvokeEvent(node, NodeEventGesture.DoubleClick, "Any"));
     }

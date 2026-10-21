@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using FlowChartKit;
 using FlowChartKit.Controls;
+using FlowChartKit.Demo.Nodes;
 using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 using Xunit;
@@ -84,7 +85,7 @@ public class KeyboardAndHitTestTests
         RunOnSta(() =>
         {
             var d = new DiagramViewModel(800, 600);
-            var node = d.AddNode(NodeKind.SampleCup, 100, 100);
+            var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
             var conn = d.AddFreeConnection(new Point(60, 60), new Point(250, 150));
             conn.SetEnd(true, node, d.FindPort(node, "L")!); // 起点吸附到左端口，画布坐标 (100,132)
 
@@ -103,7 +104,7 @@ public class KeyboardAndHitTestTests
         RunOnSta(() =>
         {
             var d = new DiagramViewModel(800, 600);
-            var node = d.AddNode(NodeKind.SampleCup, 100, 100);
+            var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
             // 自由端 (122,130) 落在部件体内部、且不靠近任何端口（距左端口约 22px > 12px）
             var conn = d.AddFreeConnection(new Point(250, 150), new Point(122, 130));
 
@@ -127,7 +128,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = new DiagramViewModel(800, 600);
-                var node = d.AddNode(NodeKind.SampleCup, 200, 200);
+                var node = d.AddNode(DemoNodeKinds.SampleCup, 200, 200);
                 var port = d.FindPort(node, "L")!;
                 var conn = d.AddFreeConnection(new Point(60, 60), new Point(250, 150));
                 conn.SetEnd(false, node, port);
@@ -189,7 +190,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = canvas.Diagram;
-                var node = d.AddNode(NodeKind.SampleCup, 100, 100);
+                var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
                 d.SelectedNode = node;
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Delete));
@@ -210,7 +211,7 @@ public class KeyboardAndHitTestTests
             window.Show();
             try
             {
-                canvas.PendingNodeKind = NodeKind.SampleCup; // 进入放置模式（变更回调会落焦点；未激活窗口无法取键盘焦点，不在此断言）
+                canvas.PendingNodeKind = DemoNodeKinds.SampleCup; // 进入放置模式（变更回调会落焦点；未激活窗口无法取键盘焦点，不在此断言）
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Escape));
 
@@ -232,7 +233,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = canvas.Diagram;
-                var node = d.AddNode(NodeKind.SampleCup, 100, 100);
+                var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
                 d.SelectedNode = node;
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Right));

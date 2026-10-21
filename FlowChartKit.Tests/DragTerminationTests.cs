@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using FlowChartKit;
 using FlowChartKit.Controls;
+using FlowChartKit.Demo.Nodes;
 using FlowChartKit.ViewModels;
 using Xunit;
 
@@ -79,7 +80,7 @@ public class DragTerminationTests
     private static (DiagramViewModel Diagram, ConnectionViewModel Conn, PortViewModel TargetPort)
         NewPipeInEndpointDrag(DiagramViewModel diagram, TestPipeControl pipe)
     {
-        var node = diagram.AddNode(NodeKind.SampleCup, 200, 200);
+        var node = diagram.AddNode(DemoNodeKinds.SampleCup, 200, 200);
         var port = diagram.FindPort(node, "L")!;
         var conn = diagram.AddFreeConnection(new Point(60, 60), new Point(250, 150));
         conn.SetEnd(false, node, port);
@@ -176,7 +177,7 @@ public class DragTerminationTests
         RunOnSta(() =>
         {
             var diagram = new DiagramViewModel(800, 600);
-            var node = diagram.AddNode(NodeKind.SampleCup, 100, 100);
+            var node = diagram.AddNode(DemoNodeKinds.SampleCup, 100, 100);
             var ctrl = new TestFlowNodeControl();
             var window = HostInWindow(ctrl);
             window.Show();

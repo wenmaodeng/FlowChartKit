@@ -62,12 +62,8 @@ public class MainViewModel : ObservableBase
                          (node.State is null ? "" : $"（State={node.State}）");
         });
 
-        // 设置部件状态：与设置流向同一模式——控件在 Loaded 时把内置命令经 OneWayToSource 灌入，
-        // VM 只发请求、读取回填的 Result
-        ApplyStateCommand = new RelayCommand(_ => ExecuteSetState(), _ => NodeNumber > 0);
-
         // 设置 LED 状态：同一命令桥，第三个参数传 LedColorState 枚举（与 LedDefinition 的约定一致）
-        ApplyLedStateCommand = new RelayCommand(_ => ExecuteSetLedState(), _ => NodeNumber > 0);
+        ApplyLedStateCommand = new RelayCommand(_ => ExecuteSetLedState(), _ => LedNumber > 0);
     }
 
     /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
@@ -94,20 +90,19 @@ public class MainViewModel : ObservableBase
             if (Set(ref _number, value))
             {
                 ApplyCommand.RaiseCanExecuteChanged();
-                ApplyStateCommand.RaiseCanExecuteChanged();
             }
         }
     }
 
-    private int _nodeNumber = 1;
-    /// <summary>要设置状态的部件编号（同类部件序号），从 1 开始，与画布上的序号徽章一致；与管路编号相互独立。</summary>
-    public int NodeNumber
+    private int _ledNumber = 1;
+    /// <summary>要设置状态的指示灯编号（同类部件序号），从 1 开始，与画布上的序号徽章一致。</summary>
+    public int LedNumber
     {
-        get => _nodeNumber;
+        get => _ledNumber;
         set
         {
-            if (Set(ref _nodeNumber, value))
-                ApplyStateCommand.RaiseCanExecuteChanged();
+            if (Set(ref _ledNumber, value))
+                ApplyLedStateCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -124,25 +119,21 @@ public class MainViewModel : ObservableBase
             .Select(m => new FlowModeItem(m, FlowModeDefaults.DisplayName(m)))
             .ToList();
 
-    /// <summary>部件类型下拉框可选项，显示名取自注册表定义。
-    /// 内置类型按枚举顺序；注册表覆盖层的扩展类型（核心库枚举之外的数值，如电磁阀）追加在末尾。</summary>
-    public IReadOnlyList<NodeKindItem> Kinds { get; } =
-        Enum.GetValues<NodeKind>()
-            .Select(k => new NodeKindItem(k, NodeDefinitionRegistry.Resolve(k).DisplayName))
-            .Concat(NodeDefinitionRegistry.All
-                .Where(def => !Enum.IsDefined(def.Kind))
-                .Select(def => new NodeKindItem(def.Kind, def.DisplayName)))
-            .ToList();
-
-    /// <summary>要设置状态的部件类型。</summary>
-    public NodeKind SelectedKind { get; set; } = NodeKind.SampleCup;
-
-    private string _stateText = "";
-    /// <summary>要写入部件的状态参数（任意文本，作为 object 载荷下发）。</summary>
-    public string StateText
+    private void ExecuteSetLedState()
     {
-        get => _stateText;
-        set => Set(ref _stateText, value);
+        if (SetNodeStateByNumberCommand is null)
+        {
+            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
+            return;
+        }
+
+        // 枚举直接装箱为 object 载荷下发；LedDefinition 按枚举渲染对应颜色
+        var request = new SetNodeStateRequest(NodeKind.Led, LedNumber, SelectedLedColor);
+        SetNodeStateByNumberCommand.Execute(request);
+
+        StatusText = request.Result == true
+            ? $"指示灯 #{LedNumber} 已设为{LedColors.First(c => c.Value == SelectedLedColor).Text}"
+            : $"未找到 指示灯 #{LedNumber}";
     }
 
     /// <summary>最近一次执行的结果提示。</summary>
@@ -154,9 +145,6 @@ public class MainViewModel : ObservableBase
 
     /// <summary>按当前编号与方向发出设置流向请求。</summary>
     public RelayCommand ApplyCommand { get; }
-
-    /// <summary>按当前类型/编号/状态发出设置部件状态请求。</summary>
-    public RelayCommand ApplyStateCommand { get; }
 
     /// <summary>按当前编号与 LED 颜色发出设置指示灯状态请求。</summary>
     public RelayCommand ApplyLedStateCommand { get; }
@@ -179,42 +167,6 @@ public class MainViewModel : ObservableBase
     {
         get => _selectedLedColor;
         set => Set(ref _selectedLedColor, value);
-    }
-
-    private void ExecuteSetLedState()
-    {
-        if (SetNodeStateByNumberCommand is null)
-        {
-            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
-            return;
-        }
-
-        // 枚举直接装箱为 object 载荷下发；LedDefinition 按枚举渲染对应颜色
-        var request = new SetNodeStateRequest(NodeKind.Led, NodeNumber, SelectedLedColor);
-        SetNodeStateByNumberCommand.Execute(request);
-
-        StatusText = request.Result == true
-            ? $"指示灯 #{NodeNumber} 已设为{LedColors.First(c => c.Value == SelectedLedColor).Text}"
-            : $"未找到 指示灯 #{NodeNumber}";
-    }
-
-    private void ExecuteSetState()
-    {
-        if (SetNodeStateByNumberCommand is null)
-        {
-            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
-            return;
-        }
-
-        // 状态语义由宿主自定义；这里把文本原样作为 object 载荷下发，留空则传 null
-        var state = string.IsNullOrWhiteSpace(StateText) ? null : StateText;
-        var request = new SetNodeStateRequest(SelectedKind, NodeNumber, state);
-        SetNodeStateByNumberCommand.Execute(request);
-
-        var displayName = NodeDefinitionRegistry.Resolve(SelectedKind).DisplayName;
-        StatusText = request.Result == true
-            ? $"{displayName} #{NodeNumber} 状态已更新{(state is null ? "（清除）" : $": {state}")}"
-            : $"未找到 {displayName} #{NodeNumber}";
     }
 
     private void Execute()

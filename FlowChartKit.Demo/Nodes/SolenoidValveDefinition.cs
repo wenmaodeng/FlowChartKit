@@ -5,12 +5,6 @@ using FlowChartKit.Rendering;
 
 namespace FlowChartKit.Demo.Nodes;
 
-/// <summary>Demo 自定义部件类型：核心库枚举之外的扩展值（序列化按数值落盘，回读不受影响）。</summary>
-public static class DemoNodeKinds
-{
-    public const NodeKind SolenoidValve = (NodeKind)1000;
-}
-
 /// <summary>
 /// 电磁阀（两位两通，左进右出）：蝶形阀体 + 顶部线圈盒。
 /// 无状态实现，几何与画笔全部冻结复用；配色复用核心库公开的标准画刷。

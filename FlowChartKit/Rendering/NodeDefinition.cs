@@ -60,20 +60,13 @@ public interface INodeDefinition
 /// </summary>
 public static class NodeDefinitionRegistry
 {
-    // 内置定义层：初始化后只读，并发读取安全
+    // 内置定义层：初始化后只读，并发读取安全。
+    // 历史上的示例部件（样品杯/试剂瓶等）已移入 Demo 作为宿主自定义部件；核心库仅保留 LED 与开关
     private static readonly IReadOnlyDictionary<NodeKind, INodeDefinition> s_builtIns =
         new Dictionary<NodeKind, INodeDefinition>
         {
-            [NodeKind.SampleCup] = new SampleCupDefinition(),
-            [NodeKind.ReagentBottle] = new ReagentBottleDefinition(),
-            [NodeKind.Waste] = new WasteDefinition(),
-            [NodeKind.ReactionCup] = new ReactionCupDefinition(),
-            [NodeKind.Cuvette] = new CuvetteDefinition(),
-            [NodeKind.Centrifuge] = new CentrifugeDefinition(),
-            [NodeKind.NeedleWash] = new NeedleWashDefinition(),
-            [NodeKind.PumpModule] = new PumpModuleDefinition(),
-            [NodeKind.ThreeWayValve] = new ThreeWayValveDefinition(),
             [NodeKind.Led] = new LedDefinition(),
+            [NodeKind.Switch] = new SwitchDefinition(),
         };
 
     // 自定义覆盖层：宿主注册/注销只作用于此层

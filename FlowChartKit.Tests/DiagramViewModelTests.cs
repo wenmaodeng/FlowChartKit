@@ -1,6 +1,7 @@
 using System.Windows;
 using FlowChartKit;
 using FlowChartKit.Data;
+using FlowChartKit.Demo.Nodes;
 using FlowChartKit.ViewModels;
 using Xunit;
 
@@ -11,8 +12,8 @@ public class DiagramViewModelTests
     private static (DiagramViewModel Diagram, NodeViewModel A, NodeViewModel B) NewDiagramWithTwoNodes()
     {
         var d = new DiagramViewModel(800, 600);
-        var a = d.AddNode(NodeKind.PumpModule, 100, 100, "A");
-        var b = d.AddNode(NodeKind.SampleCup, 300, 200, "B");
+        var a = d.AddNode(DemoNodeKinds.PumpModule, 100, 100, "A");
+        var b = d.AddNode(DemoNodeKinds.SampleCup, 300, 200, "B");
         return (d, a, b);
     }
 
@@ -161,11 +162,11 @@ public class DiagramViewModelTests
     public void KindNumber_NumberedByKindInCollectionOrder()
     {
         var d = new DiagramViewModel(800, 600);
-        var c1 = d.AddNode(NodeKind.SampleCup, 0, 0);
-        var v1 = d.AddNode(NodeKind.ThreeWayValve, 0, 0);
-        var c2 = d.AddNode(NodeKind.SampleCup, 0, 0);
-        var v2 = d.AddNode(NodeKind.ThreeWayValve, 0, 0);
-        var c3 = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var c1 = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        var v1 = d.AddNode(DemoNodeKinds.ThreeWayValve, 0, 0);
+        var c2 = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        var v2 = d.AddNode(DemoNodeKinds.ThreeWayValve, 0, 0);
+        var c3 = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
 
         // 同类型按集合顺序 1,2,3；不同类型各自独立计数
         Assert.Equal(1, c1.KindNumber);
@@ -179,9 +180,9 @@ public class DiagramViewModelTests
     public void KindNumber_RenumbersAfterRemoval()
     {
         var d = new DiagramViewModel(800, 600);
-        var a = d.AddNode(NodeKind.SampleCup, 0, 0);
-        var b = d.AddNode(NodeKind.SampleCup, 0, 0);
-        var c = d.AddNode(NodeKind.SampleCup, 0, 0);
+        var a = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        var b = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        var c = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
 
         d.RemoveNode(b);
 
@@ -193,8 +194,8 @@ public class DiagramViewModelTests
     public void KindNumber_RestoredFromLoadOrder()
     {
         var d = new DiagramViewModel(800, 600);
-        d.AddNode(NodeKind.SampleCup, 0, 0);
-        d.AddNode(NodeKind.SampleCup, 50, 0);
+        d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        d.AddNode(DemoNodeKinds.SampleCup, 50, 0);
 
         // 保存时写入当前序号，载入复原
         var restored = DiagramViewModel.FromData(d.ToData());
@@ -206,8 +207,8 @@ public class DiagramViewModelTests
     public void KindNumber_LoadPrefersStoredNumber_FallsBackToDerived()
     {
         var data = new DiagramData();
-        data.Nodes.Add(new NodeData { Id = "a", Kind = NodeKind.SampleCup, X = 0, Y = 0, Number = 5 });
-        data.Nodes.Add(new NodeData { Id = "b", Kind = NodeKind.SampleCup, X = 50, Y = 0 }); // 旧存档无编号字段
+        data.Nodes.Add(new NodeData { Id = "a", Kind = DemoNodeKinds.SampleCup, X = 0, Y = 0, Number = 5 });
+        data.Nodes.Add(new NodeData { Id = "b", Kind = DemoNodeKinds.SampleCup, X = 50, Y = 0 }); // 旧存档无编号字段
 
         var d = DiagramViewModel.FromData(data);
 
@@ -219,20 +220,20 @@ public class DiagramViewModelTests
     public void FindNode_MatchesKindAndKindNumber()
     {
         var d = new DiagramViewModel(800, 600);
-        var c1 = d.AddNode(NodeKind.SampleCup, 0, 0);
-        var c2 = d.AddNode(NodeKind.SampleCup, 50, 0);
-        d.AddNode(NodeKind.ThreeWayValve, 100, 0);
+        var c1 = d.AddNode(DemoNodeKinds.SampleCup, 0, 0);
+        var c2 = d.AddNode(DemoNodeKinds.SampleCup, 50, 0);
+        d.AddNode(DemoNodeKinds.ThreeWayValve, 100, 0);
 
-        Assert.Same(c1, d.FindNode(NodeKind.SampleCup, 1));
-        Assert.Same(c2, d.FindNode(NodeKind.SampleCup, 2));
-        Assert.Null(d.FindNode(NodeKind.SampleCup, 3));   // 序号不存在
-        Assert.Null(d.FindNode(NodeKind.PumpModule, 1));  // 类型不存在
+        Assert.Same(c1, d.FindNode(DemoNodeKinds.SampleCup, 1));
+        Assert.Same(c2, d.FindNode(DemoNodeKinds.SampleCup, 2));
+        Assert.Null(d.FindNode(DemoNodeKinds.SampleCup, 3));   // 序号不存在
+        Assert.Null(d.FindNode(DemoNodeKinds.PumpModule, 1));  // 类型不存在
     }
 
     [Fact]
     public void NodeState_SetRaisesPropertyChanged_DuplicateSuppressed()
     {
-        var node = new NodeViewModel(NodeKind.SampleCup);
+        var node = new NodeViewModel(DemoNodeKinds.SampleCup);
         int count = 0;
         node.PropertyChanged += (_, e) =>
         {
@@ -293,11 +294,11 @@ public class DiagramViewModelTests
     public void Load_UnknownNodeKind_ThrowsWithoutPartialLoad()
     {
         var d = new DiagramViewModel(800, 600);
-        d.AddNode(NodeKind.SampleCup, 10, 10);
+        d.AddNode(DemoNodeKinds.SampleCup, 10, 10);
         d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
 
         var data = new DiagramData();
-        data.Nodes.Add(new NodeData { Id = "ok", Kind = NodeKind.SampleCup, X = 0, Y = 0 });
+        data.Nodes.Add(new NodeData { Id = "ok", Kind = DemoNodeKinds.SampleCup, X = 0, Y = 0 });
         data.Nodes.Add(new NodeData { Id = "bad", Kind = (NodeKind)9999, X = 0, Y = 0 });
 
         Assert.Throws<InvalidOperationException>(() => d.Load(data));
@@ -319,7 +320,7 @@ public class DiagramViewModelTests
 
         Assert.Contains(attached, d.GetConnectionsFor(a));
         Assert.DoesNotContain(free, d.GetConnectionsFor(a));
-        Assert.Empty(d.GetConnectionsFor(new NodeViewModel(NodeKind.SampleCup, "orphan")));
+        Assert.Empty(d.GetConnectionsFor(new NodeViewModel(DemoNodeKinds.SampleCup, "orphan")));
     }
 
     [Fact]
