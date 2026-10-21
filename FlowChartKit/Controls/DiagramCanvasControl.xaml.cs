@@ -47,6 +47,10 @@ public partial class DiagramCanvasControl : UserControl
         nameof(NodePlacedCommand), typeof(ICommand), typeof(DiagramCanvasControl),
         new PropertyMetadata(null));
 
+    public static readonly DependencyProperty AllowContextMenuProperty = DependencyProperty.Register(
+        nameof(AllowContextMenu), typeof(bool), typeof(DiagramCanvasControl),
+        new PropertyMetadata(true));
+
     private bool _layoutLoaded;
     private bool _initialLoadDone;
 
@@ -55,6 +59,16 @@ public partial class DiagramCanvasControl : UserControl
 
     /// <summary>布局读写存储；默认 JSON 文件，宿主可注入自定义实现。</summary>
     public IDiagramLayoutStore LayoutStore { get; set; } = new JsonDiagramLayoutStore();
+
+    /// <summary>
+    /// 是否允许右键菜单（默认 true）。设为 false 后任何情况下（编辑/运行模式、有无选中）都不弹出右键菜单，
+    /// 用于现场软件锁定布局、杜绝运行过程中的编辑行为；右键点选高亮不受影响。
+    /// </summary>
+    public bool AllowContextMenu
+    {
+        get => (bool)GetValue(AllowContextMenuProperty);
+        set => SetValue(AllowContextMenuProperty, value);
+    }
 
     public DiagramCanvasControl()
     {
@@ -284,9 +298,19 @@ public partial class DiagramCanvasControl : UserControl
         diagram.SelectedConnection = null;
     }
 
-    /// <summary>菜单打开前按当前选中状态重建菜单项（构建逻辑见 <see cref="CanvasContextMenuBuilder"/>）。</summary>
+    /// <summary>菜单打开前按当前选中状态重建菜单项（构建逻辑见 <see cref="CanvasContextMenuBuilder"/>）；
+    /// <see cref="AllowContextMenu"/> 为 false 时直接吞掉事件，任何情况下不弹菜单。</summary>
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
-        => CanvasContextMenuBuilder.Build(CanvasMenu, this);
+    {
+        if (!AllowContextMenu)
+        {
+            e.Handled = true;
+            CanvasMenu.PlacementTarget = null;
+            CanvasMenu.IsOpen = false;
+            return;
+        }
+        CanvasContextMenuBuilder.Build(CanvasMenu, this);
+    }
 
     private static T? FindVisualAncestor<T>(DependencyObject? d) where T : DependencyObject
     {
