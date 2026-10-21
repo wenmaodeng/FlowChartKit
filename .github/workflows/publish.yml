@@ -36,11 +36,18 @@ jobs:
 
       # Trusted Publishing：不传 --api-key，.NET SDK 内置凭据提供商会在 GitHub Actions 环境
       # 下自动用 OIDC 令牌向 NuGet.org 完成身份验证（需 id-token: write + environment 与策略匹配）
+      # 注意：windows runner 的 pwsh 不展开通配符，须先枚举 nupkg 再推送
       - name: Push to NuGet.org (Trusted Publishing)
-        run: dotnet nuget push artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        run: |
+          $pkgs = Get-ChildItem artifacts -Filter *.nupkg | ForEach-Object { $_.FullName }
+          if (-not $pkgs) { Write-Error "artifacts 下未找到 nupkg，Pack 步骤输出异常" }
+          dotnet nuget push $pkgs --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME artifacts/*.nupkg --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md
+          $pkgs = Get-ChildItem artifacts -Filter *.nupkg | ForEach-Object { $_.FullName }
+          gh release create $env:GITHUB_REF_NAME $pkgs --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md
