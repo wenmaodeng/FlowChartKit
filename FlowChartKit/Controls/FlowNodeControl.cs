@@ -267,7 +267,9 @@ public class FlowNodeControl : Control
         return new PointHitTestResult(this, p);
     }
 
-    /// <summary>该画布坐标附近是否有管路端点，有则说明此处应优先由管路层处理。</summary>
+    /// <summary>该画布坐标附近是否有管路端点，有则说明此处应优先由管路层处理。
+    /// 相连管路经图模型索引直达；自由端不挂节点，经自由端集合单独覆盖，
+    /// 避免每次命中测试全图扫描。</summary>
     private static bool HasConnectionEndpointNear(NodeViewModel node, Point canvasPoint)
     {
         var diagram = node.Diagram;
@@ -276,15 +278,18 @@ public class FlowNodeControl : Control
         // 半径 12 的平方（与 PipeControl 的 12px 端点判定一致），全程不开根号
         const double radiusSquared = 12.0 * 12.0;
 
-        foreach (var conn in diagram.Connections)
+        bool EndpointNear(Point[] pts)
         {
-            var pts = conn.Points;
-            if (pts.Length < 2) continue;
-
-            if ((pts[0] - canvasPoint).LengthSquared < radiusSquared
-                || (pts[^1] - canvasPoint).LengthSquared < radiusSquared)
-                return true;
+            if (pts.Length < 2) return false;
+            return (pts[0] - canvasPoint).LengthSquared < radiusSquared
+                || (pts[^1] - canvasPoint).LengthSquared < radiusSquared;
         }
+
+        foreach (var conn in diagram.GetConnectionsFor(node))
+            if (EndpointNear(conn.Points)) return true;
+
+        foreach (var conn in diagram.FreeEndConnections)
+            if (EndpointNear(conn.Points)) return true;
 
         return false;
     }
@@ -318,7 +323,12 @@ public class FlowNodeControl : Control
         // 点击/拖动共用起点：非编辑模式同样记录，抬起时未超阈值即视为点击
         _dragMoved = false;
 
-        if (Diagram is not { IsEditable: true } diagram) return;
+        if (Diagram is not { IsEditable: true } diagram)
+        {
+            // 运行模式点击同样落焦点：Delete/Esc 等键盘事件经冒泡可达画布（鼠标焦点无键盘焦点视觉）
+            Focus();
+            return;
+        }
 
         var canvas = GetItemsCanvas();
         if (canvas is null) return; // 可视树未就绪或不在画布内，跳过拖拽
@@ -375,6 +385,15 @@ public class FlowNodeControl : Control
         }
         // 一次逻辑移动只触发一次 GeometryChanged，相连管路每帧只重算一次
         _vm.MoveTo(nx, ny);
+    }
+
+    /// <summary>捕获被外部夺走（如模态对话框弹出）：复位拖拽标志与光标，避免残留导致后续鼠标事件走拖拽路径。</summary>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (!_dragging) return;
+        _dragging = false;
+        Cursor = Cursors.Arrow;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)

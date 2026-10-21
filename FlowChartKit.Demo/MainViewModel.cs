@@ -121,10 +121,14 @@ public class MainViewModel : ObservableBase
             .Select(m => new FlowModeItem(m, FlowModeDefaults.DisplayName(m)))
             .ToList();
 
-    /// <summary>部件类型下拉框可选项，显示名取自注册表定义。</summary>
+    /// <summary>部件类型下拉框可选项，显示名取自注册表定义。
+    /// 内置类型按枚举顺序；注册表覆盖层的扩展类型（核心库枚举之外的数值，如电磁阀）追加在末尾。</summary>
     public IReadOnlyList<NodeKindItem> Kinds { get; } =
         Enum.GetValues<NodeKind>()
             .Select(k => new NodeKindItem(k, NodeDefinitionRegistry.Resolve(k).DisplayName))
+            .Concat(NodeDefinitionRegistry.All
+                .Where(def => !Enum.IsDefined(def.Kind))
+                .Select(def => new NodeKindItem(def.Kind, def.DisplayName)))
             .ToList();
 
     /// <summary>要设置状态的部件类型。</summary>

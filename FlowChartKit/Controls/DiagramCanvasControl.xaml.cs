@@ -41,7 +41,7 @@ public partial class DiagramCanvasControl : UserControl
 
     public static readonly DependencyProperty PendingNodeKindProperty = DependencyProperty.Register(
         nameof(PendingNodeKind), typeof(NodeKind?), typeof(DiagramCanvasControl),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnPendingNodeKindChanged));
 
     public static readonly DependencyProperty NodePlacedCommandProperty = DependencyProperty.Register(
         nameof(NodePlacedCommand), typeof(ICommand), typeof(DiagramCanvasControl),
@@ -93,6 +93,8 @@ public partial class DiagramCanvasControl : UserControl
         diagram.PropertyChanged += OnDiagramPropertyChanged;
         // 接住子级 FlowNodeControl 冒泡的部件点击，统一经 CLR 事件/命令桥对外（见 ClickBridge）
         HookNodeClick();
+        // 键盘事件由获得焦点的部件/管路控件冒泡至此（见 OnCanvasKeyDown）
+        KeyDown += OnCanvasKeyDown;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());
@@ -146,7 +148,7 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>操作结果的提示文本，供宿主状态栏显示。</summary>
     public event Action<string>? StatusChanged;
 
-    /// <summary>待放置的部件类型；非 null 时点击画布放置该部件，放置后自动清空。</summary>
+    /// <summary>待放置的部件类型；非 null 时点击画布放置该部件，放置后自动清空，Esc 可取消。</summary>
     public NodeKind? PendingNodeKind
     {
         get => (NodeKind?)GetValue(PendingNodeKindProperty);
@@ -192,25 +194,75 @@ public partial class DiagramCanvasControl : UserControl
         catch { /* 载入失败由 LoadLayoutAsync 内部处理，此处吞掉 async void 的未观察异常 */ }
     }
 
-    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在、解析失败或部件类型不可解析时保留当前图内容。</summary>
+    private static void OnPendingNodeKindChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        // 进入放置模式即落焦点：键盘事件经焦点元素冒泡到画布，Esc 取消才可达
+        if (d is DiagramCanvasControl control && e.NewValue is not null)
+            control.Focus();
+    }
+
+    /// <summary>异步载入序列化文件，避免阻塞 UI 线程；文件不存在、解析失败或部件类型不可解析
+    /// （由 DiagramViewModel.Load 预校验拒绝，未知类型抛异常但不会 Clear）时保留当前图内容。</summary>
     private async Task LoadLayoutAsync()
     {
         try
         {
             var data = await LayoutStore.LoadAsync(EffectiveLayoutFilePath);
             if (data is null) return;
-
-            // 先校验全部部件类型可解析，再整体载入：
-            // Diagram.Load 会先 Clear，若中途因未知 NodeKind 抛异常会留下"半载入"画布
-            foreach (var nd in data.Nodes)
-                NodeDefinitionRegistry.Resolve(nd.Kind);
-
             Diagram.Load(data);
         }
         catch
         {
-            // 载入失败：保留载入前的图内容，宿主可通过"保存布局"重建文件
+            // 载入失败（含未知部件类型）：保留载入前的图内容，宿主可通过"保存布局"重建文件
         }
+    }
+
+    // ---- 键盘操作 ----
+
+    /// <summary>画布键盘操作：Delete 删除选中项（与右键菜单一致）、Esc 取消部件放置模式、
+    /// 方向键微调选中部件。键盘事件由获得焦点的部件/管路控件冒泡至此，"选中即落焦点"是可达前提。</summary>
+    private void OnCanvasKeyDown(object sender, KeyEventArgs e)
+    {
+        var diagram = Diagram;
+        switch (e.Key)
+        {
+            case Key.Delete:
+                var command = diagram.DeleteSelectedCommand;
+                if (command.CanExecute(null))
+                {
+                    command.Execute(null);
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Escape:
+                if (PendingNodeKind is not null)
+                {
+                    PendingNodeKind = null;
+                    StatusChanged?.Invoke("已取消部件放置");
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Left or Key.Right or Key.Up or Key.Down:
+                if (diagram.IsEditable && diagram.SelectedNode is { } node)
+                {
+                    NudgeNode(node, e.Key);
+                    e.Handled = true;
+                }
+                break;
+        }
+    }
+
+    /// <summary>方向键微调选中部件：1px，按住 Shift 为 10px；坐标钳位到画布内（与其他放置/拖拽入口一致）。</summary>
+    private void NudgeNode(NodeViewModel node, Key key)
+    {
+        double step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1;
+        double dx = key switch { Key.Left => -step, Key.Right => step, _ => 0 };
+        double dy = key switch { Key.Up => -step, Key.Down => step, _ => 0 };
+        node.MoveTo(
+            Math.Clamp(node.X + dx, 0, Math.Max(0, Diagram.CanvasWidth - node.ShapeWidth)),
+            Math.Clamp(node.Y + dy, 0, Math.Max(0, Diagram.CanvasHeight - node.ShapeHeight)));
     }
 
     private async void SaveLayout()

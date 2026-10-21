@@ -25,6 +25,10 @@ public class ConnectionViewModel : ObservableBase
     private bool _dragIsStart;
     private Point _dragPoint;
     private PortViewModel? _snapTarget;
+    // 拖拽前锚点快照：Esc 取消时回退（抬起路径的提交落点不使用）
+    private NodeViewModel? _dragOrigNode;
+    private PortViewModel? _dragOrigPort;
+    private Point? _dragOrigFree;
 
     public ConnectionViewModel(DiagramViewModel diagram, string? id = null)
     {
@@ -132,6 +136,21 @@ public class ConnectionViewModel : ObservableBase
         _dragIsStart = isStart;
         _dragPoint = mousePos;
         _snapTarget = null;
+
+        // 快照拖拽前锚点，供 Esc 取消回退
+        if (isStart)
+        {
+            _dragOrigNode = SourceNode;
+            _dragOrigPort = SourcePort;
+            _dragOrigFree = FreeSource;
+        }
+        else
+        {
+            _dragOrigNode = TargetNode;
+            _dragOrigPort = TargetPort;
+            _dragOrigFree = FreeTarget;
+        }
+
         Recompute();
     }
 
@@ -150,11 +169,40 @@ public class ConnectionViewModel : ObservableBase
         _dragActive = false;
         _dragIsStart = false;
         _snapTarget = null;
+        ClearDragOrigins();
 
         if (snap != null)
             SetEnd(isStart, snap.Owner, snap);
         else
             SetFreeEnd(isStart, _dragPoint);
+    }
+
+    /// <summary>取消端点拖拽（Esc）：退出拖拽态并把该端回退到拖拽前锚点（区别于抬起路径的提交落点）。</summary>
+    internal void CancelEndpointDrag()
+    {
+        if (!_dragActive) return;
+        bool isStart = _dragIsStart;
+        var node = _dragOrigNode;
+        var port = _dragOrigPort;
+        var free = _dragOrigFree;
+        _dragActive = false;
+        _dragIsStart = false;
+        _snapTarget = null;
+        ClearDragOrigins();
+
+        if (port != null)
+            SetEnd(isStart, node!, port);
+        else if (free != null)
+            SetFreeEnd(isStart, free.Value);
+        else
+            Recompute(); // 拖拽前该端无锚点（不应发生）：仅退出拖拽态并按现状重算
+    }
+
+    private void ClearDragOrigins()
+    {
+        _dragOrigNode = null;
+        _dragOrigPort = null;
+        _dragOrigFree = null;
     }
 
     // ---- 锚点解析与几何计算 ----

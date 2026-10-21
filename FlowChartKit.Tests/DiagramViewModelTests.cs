@@ -286,4 +286,95 @@ public class DiagramViewModelTests
         // 载入后运行期新增：编号从存档最大值之后继续，与载入分配机制衔接
         Assert.Equal(8, added.Number);
     }
+
+    // ---- Load 预校验（半载入防护下沉到公共入口） ----
+
+    [Fact]
+    public void Load_UnknownNodeKind_ThrowsWithoutPartialLoad()
+    {
+        var d = new DiagramViewModel(800, 600);
+        d.AddNode(NodeKind.SampleCup, 10, 10);
+        d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+
+        var data = new DiagramData();
+        data.Nodes.Add(new NodeData { Id = "ok", Kind = NodeKind.SampleCup, X = 0, Y = 0 });
+        data.Nodes.Add(new NodeData { Id = "bad", Kind = (NodeKind)9999, X = 0, Y = 0 });
+
+        Assert.Throws<InvalidOperationException>(() => d.Load(data));
+
+        // 半载入被拒：尚未 Clear，载入前的部件与管路原样保留
+        Assert.Single(d.Nodes);
+        Assert.Single(d.Connections);
+        Assert.Equal(10, d.Nodes[0].X);
+    }
+
+    // ---- 管路索引（部件命中让位判定复用） ----
+
+    [Fact]
+    public void GetConnectionsFor_ReturnsOnlyAttachedConnections()
+    {
+        var (d, a, b) = NewDiagramWithTwoNodes();
+        var attached = d.AddConnection(a, a.Ports[0], b, b.Ports[0]);
+        var free = d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+
+        Assert.Contains(attached, d.GetConnectionsFor(a));
+        Assert.DoesNotContain(free, d.GetConnectionsFor(a));
+        Assert.Empty(d.GetConnectionsFor(new NodeViewModel(NodeKind.SampleCup, "orphan")));
+    }
+
+    [Fact]
+    public void FreeEndIndex_TracksEndpointChanges()
+    {
+        var (d, a, _) = NewDiagramWithTwoNodes();
+        var conn = d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+        Assert.Contains(conn, d.FreeEndConnections);
+
+        conn.SetEnd(true, a, a.Ports[0]); // 一端仍自由
+        Assert.Contains(conn, d.FreeEndConnections);
+
+        conn.SetEnd(false, a, a.Ports[0]); // 两端都接上
+        Assert.DoesNotContain(conn, d.FreeEndConnections);
+
+        conn.SetFreeEnd(true, new Point(10, 10)); // 再次放开一端
+        Assert.Contains(conn, d.FreeEndConnections);
+    }
+
+    [Fact]
+    public void FreeEndIndex_CleanedOnRemoveAndClear()
+    {
+        var (d, _, _) = NewDiagramWithTwoNodes();
+        var conn = d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+
+        d.RemoveConnection(conn);
+        Assert.DoesNotContain(conn, d.FreeEndConnections);
+
+        d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+        d.Clear();
+        Assert.Empty(d.FreeEndConnections);
+    }
+
+    // ---- 端点拖拽 Esc 取消 ----
+
+    [Fact]
+    public void CancelConnectionEndpointDrag_RevertsToPreDragAnchor()
+    {
+        var (d, a, _) = NewDiagramWithTwoNodes();
+        var port = a.Ports[0];
+        var conn = d.AddFreeConnection(new Point(0, 0), new Point(50, 50));
+        conn.SetEnd(false, a, port);
+        var pointsBefore = conn.Points.ToArray();
+
+        d.BeginConnectionEndpointDrag(conn, isStart: false, new Point(50, 50));
+        d.UpdateConnectionEndpointDrag(conn, isStart: false, new Point(700, 500)); // 拖远
+        Assert.NotEqual(pointsBefore, conn.Points);
+
+        d.SetSnapHighlight(port); // 模拟拖拽中的吸附高亮
+        d.CancelConnectionEndpointDrag(conn);
+
+        Assert.Same(a, conn.TargetNode);  // 回退到拖拽前的端口锚点
+        Assert.Same(port, conn.TargetPort);
+        Assert.Null(conn.FreeTarget);
+        Assert.Equal(pointsBefore, conn.Points);
+        Assert.False(port.IsHighlighted); // 吸附高亮已清除
+    }
 }

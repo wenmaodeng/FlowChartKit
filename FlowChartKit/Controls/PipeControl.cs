@@ -335,13 +335,24 @@ public class PipeControl : Control
 
         e.Handled = true;
         if (_diagram is { } diagram)
+        {
             diagram.SelectedConnection = vm;
+            Focus(); // 选中即落焦点：Delete/Esc 等键盘事件经冒泡可达画布
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
         if (!_draggingEndpoint || !IsMouseCaptured || _vm is null) return;
+
+        // 拖拽中途切出编辑模式：立即终止本次端点拖拽，避免运行模式下继续改写图模型
+        if (_diagram is not { IsEditable: true })
+        {
+            FinishEndpointDrag();
+            return;
+        }
+
         var p = e.GetPosition(this);
         _diagram?.UpdateConnectionEndpointDrag(_vm, _dragIsStart, p);
     }
@@ -350,11 +361,37 @@ public class PipeControl : Control
     {
         base.OnMouseLeftButtonUp(e);
         if (_draggingEndpoint)
-        {
-            _draggingEndpoint = false;
-            if (_vm is { } conn) _diagram?.EndConnectionEndpointDrag(conn);
-            if (IsMouseCaptured) ReleaseMouseCapture();
-        }
+            FinishEndpointDrag();
+    }
+
+    /// <summary>捕获被外部夺走（如模态对话框弹出）：按收尾路径复位，避免拖拽标志与吸附高亮残留。</summary>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_draggingEndpoint)
+            FinishEndpointDrag();
+    }
+
+    /// <summary>Esc 取消端点拖拽：回退到拖拽前锚点并退出拖拽态（区别于抬起路径的提交落点）。
+    /// 端点拖拽开始时已落焦点，键盘事件由此处接收后交图模型编排回退。</summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key != Key.Escape || !_draggingEndpoint) return;
+
+        e.Handled = true;
+        _draggingEndpoint = false;
+        if (_vm is { } conn) _diagram?.CancelConnectionEndpointDrag(conn);
+        if (IsMouseCaptured) ReleaseMouseCapture();
+    }
+
+    /// <summary>收尾端点拖拽：提交落点（吸附端口或自由端）、清除吸附高亮并复位状态。
+    /// 须先清 _draggingEndpoint 再释放捕获，使释放捕获触发的 LostMouseCapture 成为空操作。</summary>
+    private void FinishEndpointDrag()
+    {
+        _draggingEndpoint = false;
+        if (_vm is { } conn) _diagram?.EndConnectionEndpointDrag(conn);
+        if (IsMouseCaptured) ReleaseMouseCapture();
     }
 
     /// <summary>是否靠近某一端点（半径 12 的平方比较，不开根号）。</summary>

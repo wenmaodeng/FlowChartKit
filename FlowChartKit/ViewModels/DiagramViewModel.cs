@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using FlowChartKit.Core;
 using FlowChartKit.Data;
+using FlowChartKit.Rendering;
 
 namespace FlowChartKit.ViewModels;
 
@@ -59,6 +60,10 @@ public class DiagramViewModel : ObservableBase
 
     /// <summary>部件 → 相连管路 的索引：节点移动/缩放时只重算自己的管路，避免全图扫描。</summary>
     private readonly Dictionary<NodeViewModel, List<ConnectionViewModel>> _connectionsByNode = new();
+
+    /// <summary>带自由端的管路集合：自由端不挂任何部件，部件命中让位判定需单独覆盖；
+    /// 由 IndexConnection/UnindexConnection/Clear 统一维护。</summary>
+    private readonly HashSet<ConnectionViewModel> _freeEndConnections = new();
 
     /// <summary>Load 批量添加部件期间抑制逐个序号重排，载入完毕后统一执行一次。</summary>
     private bool _suppressRenumber;
@@ -262,6 +267,16 @@ public class DiagramViewModel : ObservableBase
 
     // ---- 部件 → 管路 索引 ----
 
+    /// <summary>与本部件相连的管路（索引直达），无相连时返回空表。
+    /// 供部件命中让位判定等高频场景复用，避免每次全图扫描。</summary>
+    internal IReadOnlyList<ConnectionViewModel> GetConnectionsFor(NodeViewModel node)
+        => _connectionsByNode.TryGetValue(node, out var list)
+            ? list
+            : (IReadOnlyList<ConnectionViewModel>)Array.Empty<ConnectionViewModel>();
+
+    /// <summary>当前带自由端的管路（自由端不挂在任何部件上，命中让位判定需单独覆盖）。</summary>
+    internal IEnumerable<ConnectionViewModel> FreeEndConnections => _freeEndConnections;
+
     /// <summary>按管路当前端点重建索引项；oldSource/oldTarget 为端点变更前的节点（无则传 null）。</summary>
     internal void IndexConnection(ConnectionViewModel conn, NodeViewModel? oldSource, NodeViewModel? oldTarget)
     {
@@ -275,12 +290,19 @@ public class DiagramViewModel : ObservableBase
             if (oldTarget != null) RemoveFromIndex(oldTarget, conn);
             if (conn.TargetNode != null) AddToIndex(conn.TargetNode, conn);
         }
+
+        // 自由端索引：SetEnd/SetFreeEnd 均在改值后调用本方法，此处读到的是最新端点状态
+        if (conn.FreeSource is not null || conn.FreeTarget is not null)
+            _freeEndConnections.Add(conn);
+        else
+            _freeEndConnections.Remove(conn);
     }
 
     private void UnindexConnection(ConnectionViewModel conn)
     {
         if (conn.SourceNode != null) RemoveFromIndex(conn.SourceNode, conn);
         if (conn.TargetNode != null) RemoveFromIndex(conn.TargetNode, conn);
+        _freeEndConnections.Remove(conn);
     }
 
     private void AddToIndex(NodeViewModel node, ConnectionViewModel conn)
@@ -363,6 +385,13 @@ public class DiagramViewModel : ObservableBase
         SetSnapHighlight(null);
     }
 
+    /// <summary>取消端点拖拽（Esc）：端点回退到拖拽前位置并清除吸附高亮。</summary>
+    public void CancelConnectionEndpointDrag(ConnectionViewModel conn)
+    {
+        conn.CancelEndpointDrag();
+        SetSnapHighlight(null);
+    }
+
     // ---- 序列化 ----
 
     public DiagramData ToData()
@@ -409,6 +438,7 @@ public class DiagramViewModel : ObservableBase
         SetSnapHighlight(null);
         Connections.Clear();
         _connectionsByNode.Clear();
+        _freeEndConnections.Clear();
         foreach (var n in Nodes)
         {
             n.PropertyChanged -= OnNodePropertyChanged;
@@ -425,8 +455,13 @@ public class DiagramViewModel : ObservableBase
         return diagram;
     }
 
+    /// <summary>整体重建图内容。载入前先校验全部部件类型可解析：存在未知 <see cref="NodeKind"/> 时直接抛
+    /// <see cref="InvalidOperationException"/>，此时尚未 Clear，图内容原样保留，不会出现半载入状态。</summary>
     public void Load(DiagramData data)
     {
+        foreach (var nd in data.Nodes)
+            NodeDefinitionRegistry.Resolve(nd.Kind);
+
         Clear();
         if (data.Width > 0) CanvasWidth = data.Width;
         if (data.Height > 0) CanvasHeight = data.Height;
