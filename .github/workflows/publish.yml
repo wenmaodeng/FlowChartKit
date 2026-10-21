@@ -34,15 +34,30 @@ jobs:
       - name: Pack
         run: dotnet pack FlowChartKit/FlowChartKit.csproj -c Release -o artifacts
 
-      # Trusted Publishing：不传 --api-key，.NET SDK 内置凭据提供商会在 GitHub Actions 环境
-      # 下自动用 OIDC 令牌向 NuGet.org 完成身份验证（需 id-token: write + environment 与策略匹配）
+      # Trusted Publishing：内置凭据提供商不会自动做 OIDC 交换（实测 401），
+      # 需手动向 GitHub OIDC 申请令牌换取 NuGet 短期 API Key
       # 注意：windows runner 的 pwsh 不展开通配符，须先枚举 nupkg 再推送
       - name: Push to NuGet.org (Trusted Publishing)
         shell: pwsh
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: |
           $pkgs = Get-ChildItem artifacts -Filter *.nupkg | ForEach-Object { $_.FullName }
           if (-not $pkgs) { Write-Error "artifacts 下未找到 nupkg，Pack 步骤输出异常" }
-          dotnet nuget push $pkgs --source https://api.nuget.org/v3/index.json --skip-duplicate
+          # 1) 申请 audience=api://NuGet.org 的 OIDC 令牌
+          $requestUrl = "$env:ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://NuGet.org"
+          $oidcToken = (Invoke-RestMethod -Uri $requestUrl -Headers @{Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"}).value
+          # 2) 换取 NuGet 短期 API Key
+          $body = @{
+            grant_type         = "urn:ietf:params:oauth:grant-type:token-exchange"
+            subject_token_type = "urn:ietf:params:oauth:token-type:jwt"
+            subject_token      = $oidcToken
+            audience           = "api://NuGet.org"
+          } | ConvertTo-Json
+          $apiKey = (Invoke-RestMethod -Uri "https://api.nuget.org/v3/oidc/request-token" -Method Post -ContentType "application/json" -Body $body).access_token
+          # 3) 推送
+          dotnet nuget push $pkgs --source https://api.nuget.org/v3/index.json --api-key $apiKey --skip-duplicate
 
       - name: Create GitHub Release
         shell: pwsh
