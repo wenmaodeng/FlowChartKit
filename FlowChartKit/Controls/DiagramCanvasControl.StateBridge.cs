@@ -7,7 +7,7 @@ namespace FlowChartKit.Controls;
 
 /// <summary>
 /// <see cref="DiagramCanvasControl"/> 的"设置部件状态"桥接部分：
-/// 与 <see cref="DiagramCanvasControl.DirectionBridge"/>（管路流向）同一模式——
+/// 与管路流向桥接（DirectionBridge 分部）同一模式——
 /// 控件把内置命令作为依赖属性暴露，宿主 VM 用 OneWayToSource 绑定取走后自行调用，
 /// 参数传 <see cref="SetNodeStateRequest"/>，执行结果回填到 <see cref="SetNodeStateRequest.Result"/>。
 /// 命名为 ByNumber 以表明定位方式：部件类型 + 同类序号（与画布上的序号徽章一致）。

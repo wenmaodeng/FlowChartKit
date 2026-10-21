@@ -37,7 +37,7 @@ public static class DiagramSerializer
     public static async Task SaveAsync(DiagramData data, string path, CancellationToken ct = default)
         => await File.WriteAllTextAsync(path, ToJson(data), ct).ConfigureAwait(false);
 
-    /// <summary>异步读取；路径不存在时返回 null。</summary>
+    /// <summary>异步读取；路径不存在或内容损坏（含未知部件类型）时返回 null。</summary>
     public static async Task<DiagramData?> LoadAsync(string path, CancellationToken ct = default)
     {
         if (!File.Exists(path)) return null;

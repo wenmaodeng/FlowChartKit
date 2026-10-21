@@ -155,7 +155,7 @@ public class NodeDefinitionTests
     [Fact]
     public void IsBuiltIn_FalseWhenOverridden_TrueAfterUnregister()
     {
-        var customKind = (NodeKind)1002;
+        var customKind = (NodeKind)5002; // 远离 Demo 扩展区的未注册类型
         var custom = new TestDefinition(customKind, "自定义", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         var ledOverride = new TestDefinition(NodeKind.Led, "覆盖灯", (10, 10),
@@ -187,7 +187,7 @@ public class NodeDefinitionTests
         // 初态 = 内置 Led + Demo 注册的覆盖层定义（含枚举外的电磁阀）
         var initialCount = NodeDefinitionRegistry.All.Count;
 
-        var customKind = (NodeKind)1001; // 枚举之外的自定义类型
+        var customKind = (NodeKind)5001; // 远离 Demo 扩展区(1000-1009)的未注册类型
         var custom = new TestDefinition(customKind, "自定义", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         var ledOverride = new TestDefinition(NodeKind.Led, "覆盖灯", (10, 10),

@@ -5,6 +5,12 @@ namespace FlowChartKit.Data;
 /// <summary>流路图持久化数据（JSON 序列化用）。</summary>
 public sealed class DiagramData
 {
+    /// <summary>
+    /// 存档格式版本（当前 1，首次发布）。为将来 schema 变更预留迁移锚点：
+    /// 载入时发现更旧版本可按需引入转换逻辑，未识别的更高版本应提示宿主升级库。
+    /// </summary>
+    public int Version { get; set; } = 1;
+
     public double Width { get; set; } = 1400;
     public double Height { get; set; } = 900;
     public List<NodeData> Nodes { get; set; } = [];

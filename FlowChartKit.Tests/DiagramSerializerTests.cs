@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using FlowChartKit;
 using FlowChartKit.Data;
@@ -108,10 +109,20 @@ public class DiagramSerializerTests
             Assert.Single(loaded!.Nodes);
             Assert.Equal("试剂", loaded.Nodes[0].Label);
             Assert.Equal(640, loaded.Width);
+            Assert.Equal(1, loaded.Version);
         }
         finally
         {
             if (File.Exists(path)) File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void FromJson_UnknownKindName_Throws()
+    {
+        // 未注册的未知部件类型：反序列化失败（LoadAsync 捕获后返回 null → 载入失败一致性路径）
+        const string badJson = """{ "Version": 1, "Nodes": [ { "Id": "x", "Kind": "Ghost" } ], "Connections": [] }""";
+
+        Assert.ThrowsAny<JsonException>(() => DiagramSerializer.FromJson(badJson));
     }
 }
