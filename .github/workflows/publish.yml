@@ -34,28 +34,21 @@ jobs:
       - name: Pack
         run: dotnet pack FlowChartKit/FlowChartKit.csproj -c Release -o artifacts
 
-      # Trusted Publishing：内置凭据提供商不会自动做 OIDC 交换（实测 401），
-      # 需手动向 GitHub OIDC 申请令牌换取 NuGet 短期 API Key
-      # 注意：windows runner 的 pwsh 不展开通配符，须先枚举 nupkg 再推送
-      # ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN 由 runner 在 id-token: write 下自动注入步骤环境
+      # Trusted Publishing 官方流程：用 NuGet/login@v1 将 GitHub OIDC 令牌兑换为
+      # 1 小时有效的临时 API Key（user 为 nuget.org 的用户名，非邮箱）
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: wenmaodeng
+
+      # windows runner 的 pwsh 不展开通配符，须先枚举 nupkg 再推送
       - name: Push to NuGet.org (Trusted Publishing)
         shell: pwsh
         run: |
           $pkgs = Get-ChildItem artifacts -Filter *.nupkg | ForEach-Object { $_.FullName }
           if (-not $pkgs) { Write-Error "artifacts 下未找到 nupkg，Pack 步骤输出异常" }
-          # 1) 申请 audience=api://NuGet.org 的 OIDC 令牌
-          $requestUrl = "$env:ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://NuGet.org"
-          $oidcToken = (Invoke-RestMethod -Uri $requestUrl -Headers @{Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"}).value
-          # 2) 换取 NuGet 短期 API Key
-          $body = @{
-            grant_type         = "urn:ietf:params:oauth:grant-type:token-exchange"
-            subject_token_type = "urn:ietf:params:oauth:token-type:jwt"
-            subject_token      = $oidcToken
-            audience           = "api://NuGet.org"
-          } | ConvertTo-Json
-          $apiKey = (Invoke-RestMethod -Uri "https://api.nuget.org/v3/oidc/request-token" -Method Post -ContentType "application/json" -Body $body).access_token
-          # 3) 推送
-          dotnet nuget push $pkgs --source https://api.nuget.org/v3/index.json --api-key $apiKey --skip-duplicate
+          dotnet nuget push $pkgs --source https://api.nuget.org/v3/index.json --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --skip-duplicate
 
       - name: Create GitHub Release
         shell: pwsh
