@@ -1,0 +1,43 @@
+name: publish
+
+# 发版流程：更新 csproj 的 Version → 提交 → git tag v1.0.0 → git push --tags
+# 自动完成：版本一致性校验 → Release 打包 → 推送 NuGet.org → 创建 GitHub Release 并附包
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # 创建 GitHub Release 并上传附件
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # tag（v1.2.3）必须与 csproj 的 <Version> 一致，防止包版本与发布标签错位
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME.TrimStart('v')
+          $csproj = "FlowChartKit/FlowChartKit.csproj"
+          $version = (Select-String -Path $csproj -Pattern '<Version>(.*?)</Version>').Matches[0].Groups[1].Value
+          if ($tag -ne $version) {
+            Write-Error "tag v$tag 与 csproj Version $version 不一致：更新 FlowChartKit/FlowChartKit.csproj 的 <Version> 后重新打 tag"
+          }
+
+      - name: Pack
+        run: dotnet pack FlowChartKit/FlowChartKit.csproj -c Release -o artifacts
+
+      - name: Push to NuGet.org
+        run: dotnet nuget push artifacts/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGET_KEY }} --skip-duplicate
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME artifacts/*.nupkg --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md
