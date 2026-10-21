@@ -30,7 +30,18 @@ public class FlowNodeControl : Control
     private NodeViewModel? _vm;
     private DiagramViewModel? _diagram;
     private bool _dragging;
+    private bool _dragMoved;
     private Point _dragStartCanvas;
+
+    public static readonly RoutedEvent NodeClickEvent = EventManager.RegisterRoutedEvent(
+        nameof(NodeClick), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(FlowNodeControl));
+
+    /// <summary>部件被点击（按下-抬起间未发生拖动）时触发的路由事件，冒泡至画布控件统一处理。</summary>
+    public event RoutedEventHandler NodeClick
+    {
+        add => AddHandler(NodeClickEvent, value);
+        remove => RemoveHandler(NodeClickEvent, value);
+    }
     private double _origX, _origY;
 
     // 标签文本缓存：仅在 Label 或 DPI 变化时重建，避免每次 OnRender 构造 FormattedText
@@ -269,6 +280,10 @@ public class FlowNodeControl : Control
     {
         base.OnMouseLeftButtonDown(e);
         if (_vm is null) return;
+
+        // 点击/拖动共用起点：非编辑模式同样记录，抬起时未超阈值即视为点击
+        _dragMoved = false;
+
         if (Diagram is not { IsEditable: true } diagram) return;
 
         var canvas = GetItemsCanvas();
@@ -294,9 +309,20 @@ public class FlowNodeControl : Control
         if (canvas is null) return;
 
         var p = e.GetPosition(canvas);
+        double dx = p.X - _dragStartCanvas.X;
+        double dy = p.Y - _dragStartCanvas.Y;
 
-        double nx = _origX + p.X - _dragStartCanvas.X;
-        double ny = _origY + p.Y - _dragStartCanvas.Y;
+        // 超过系统拖拽阈值前不视为拖动：避免轻微抖动触发管路重算并误吞点击
+        if (!_dragMoved)
+        {
+            if (Math.Abs(dx) < SystemParameters.MinimumHorizontalDragDistance
+                && Math.Abs(dy) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+            _dragMoved = true;
+        }
+
+        double nx = _origX + dx;
+        double ny = _origY + dy;
         var diagram = Diagram;
         if (diagram != null)
         {
@@ -316,6 +342,10 @@ public class FlowNodeControl : Control
             if (IsMouseCaptured) ReleaseMouseCapture();
             Cursor = Cursors.Arrow;
         }
+
+        // 点击（未拖动）：仅运行模式（非编辑）上抛业务事件；编辑模式下点击只承担选中/拖拽
+        if (!_dragMoved && _vm is not null && Diagram is not { IsEditable: true })
+            RaiseEvent(new NodeClickEventArgs(_vm));
     }
 
     /// <summary>

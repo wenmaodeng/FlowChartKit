@@ -63,6 +63,8 @@ public partial class DiagramCanvasControl : UserControl
         SetValue(DiagramPropertyKey, diagram);
         // 直接改 Diagram.IsEditable 时回写到依赖属性，保证外部绑定同步
         diagram.PropertyChanged += OnDiagramPropertyChanged;
+        // 接住子级 FlowNodeControl 冒泡的部件点击，统一经 CLR 事件/命令桥对外（见 ClickBridge）
+        HookNodeClick();
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());

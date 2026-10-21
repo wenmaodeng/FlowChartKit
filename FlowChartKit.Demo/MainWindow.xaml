@@ -30,15 +30,36 @@
                 <Button Content="设置流向" Padding="14,4" Margin="12,0,0,0"
                         Command="{Binding ApplyCommand}" />
 
+                <TextBlock Text="部件类型" VerticalAlignment="Center" Margin="16,0,6,0" />
+                <ComboBox Width="90" VerticalContentAlignment="Center"
+                          ItemsSource="{Binding Kinds}"
+                          DisplayMemberPath="Text"
+                          SelectedValuePath="Value"
+                          SelectedValue="{Binding SelectedKind}" />
+
+                <TextBlock Text="部件编号" VerticalAlignment="Center" Margin="12,0,6,0" />
+                <TextBox Width="60" VerticalContentAlignment="Center"
+                         Text="{Binding NodeNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Text="状态" VerticalAlignment="Center" Margin="12,0,6,0" />
+                <TextBox Width="80" VerticalContentAlignment="Center"
+                         Text="{Binding StateText, UpdateSourceTrigger=PropertyChanged}" />
+
+                <Button Content="设置状态" Padding="14,4" Margin="12,0,0,0"
+                        Command="{Binding ApplyStateCommand}" />
+
                 <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
                            Margin="16,0,0,0" Foreground="#555555" />
             </StackPanel>
         </Border>
 
         <!-- 全部操作（添加/流向/删除/保存/恢复/编辑模式）均在画布控件内完成 -->
-        <!-- 设置流向：控件把内置命令经 OneWayToSource 灌入 VM 的 SetDirectionByNumberCommand，VM 只认 ICommand -->
+        <!-- 设置流向/设置状态：控件把内置命令经 OneWayToSource 灌入 VM，VM 只认 ICommand -->
+        <!-- 部件点击：方向相反——VM 提供命令、控件在点击时执行，同 Button.Command 用默认 OneWay 绑定 -->
         <fc:DiagramCanvasControl IsEditable="True"
-                                 SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}" />
+                                 SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}"
+                                 SetNodeStateByNumberCommand="{Binding SetNodeStateByNumberCommand, Mode=OneWayToSource}"
+                                 NodeClickCommand="{Binding NodeClickCommand}" />
     </DockPanel>
 
 </Window>
