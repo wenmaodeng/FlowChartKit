@@ -55,6 +55,39 @@ public class DiagramViewModel : ObservableBase
     /// <summary>画布高度；载入存档时按存档值更新并发通知。</summary>
     public double CanvasHeight { get => _canvasHeight; private set => Set(ref _canvasHeight, value); }
 
+    /// <summary>
+    /// 运行时调整画布尺寸（控件"自适应宿主大小"模式用）：越界的部件与自由端同步收敛回新边界，
+    /// 保证不出现滚动条。宽高 ≤ 0 时忽略。
+    /// </summary>
+    public void Resize(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+        CanvasWidth = width;
+        CanvasHeight = height;
+
+        foreach (var n in Nodes)
+        {
+            var x = Math.Clamp(n.X, 0, Math.Max(0, width - n.ShapeWidth));
+            var y = Math.Clamp(n.Y, 0, Math.Max(0, height - n.ShapeHeight));
+            if (x != n.X || y != n.Y) n.MoveTo(x, y);
+        }
+
+        // 自由端同步钳位（复制集合再遍历，避免回调中修改索引集合）
+        foreach (var c in _freeEndConnections.ToArray())
+        {
+            if (c.FreeSource is { } fs)
+            {
+                var p = new Point(Math.Clamp(fs.X, 0, width), Math.Clamp(fs.Y, 0, height));
+                if (p != fs) c.SetFreeEnd(true, p);
+            }
+            if (c.FreeTarget is { } ft)
+            {
+                var p = new Point(Math.Clamp(ft.X, 0, width), Math.Clamp(ft.Y, 0, height));
+                if (p != ft) c.SetFreeEnd(false, p);
+            }
+        }
+    }
+
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
 

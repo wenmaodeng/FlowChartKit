@@ -21,7 +21,8 @@
         <ContextMenu x:Name="CanvasMenu" />
     </UserControl.ContextMenu>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+    <ScrollViewer x:Name="CanvasScroller"
+                  HorizontalScrollBarVisibility="Auto"
                   VerticalScrollBarVisibility="Auto" Background="#EEF2FA">
         <Canvas x:Name="DiagramCanvas"
                 Width="{Binding Diagram.CanvasWidth, ElementName=Root}"

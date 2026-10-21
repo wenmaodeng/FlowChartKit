@@ -55,8 +55,14 @@ public partial class DiagramCanvasControl : UserControl
         nameof(ClearLayoutRequiresConfirm), typeof(bool), typeof(DiagramCanvasControl),
         new PropertyMetadata(true));
 
+    public static readonly DependencyProperty AutoFitCanvasProperty = DependencyProperty.Register(
+        nameof(AutoFitCanvas), typeof(bool), typeof(DiagramCanvasControl),
+        new PropertyMetadata(false, OnAutoFitCanvasChanged));
+
     private bool _layoutLoaded;
     private bool _initialLoadDone;
+    /// <summary>自适应收敛执行中标记：Resize 引发的 CanvasWidth/Height 通知会再次触发收敛，防重入。</summary>
+    private bool _autoFitting;
 
     /// <summary>最近一次右键的画布坐标，供菜单里的"添加"操作定位。</summary>
     private Point _menuPosition;
@@ -95,6 +101,8 @@ public partial class DiagramCanvasControl : UserControl
         HookNodeClick();
         // 键盘事件由获得焦点的部件/管路控件冒泡至此（见 OnCanvasKeyDown）
         KeyDown += OnCanvasKeyDown;
+        // 自适应模式下随宿主大小变化收敛画布尺寸
+        SizeChanged += OnControlSizeChanged;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         AddNodeCommand = new RelayCommand(AddNode);
         AddConnectionCommand = new RelayCommand(_ => AddConnection());
@@ -117,6 +125,17 @@ public partial class DiagramCanvasControl : UserControl
     {
         get => (bool)GetValue(IsEditableProperty);
         set => SetValue(IsEditableProperty, value);
+    }
+
+    /// <summary>
+    /// 画布自适应宿主大小：true 时画布逻辑尺寸自动收敛为控件可视区大小（隐藏滚动条，
+    /// 越界部件与自由端被钳位回画布内，存档里的 Width/Height 不再决定显示范围）；
+    /// false（默认）按存档/数据尺寸显示，超出部分滚动查看。
+    /// </summary>
+    public bool AutoFitCanvas
+    {
+        get => (bool)GetValue(AutoFitCanvasProperty);
+        set => SetValue(AutoFitCanvasProperty, value);
     }
 
     /// <summary>布局序列化文件路径；未指定（null 或空白）时使用 <see cref="DiagramSerializer.DefaultFilePath"/>。</summary>
@@ -346,9 +365,46 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>图模型侧改编辑模式时回写到依赖属性；SetCurrentValue 不会覆盖外部绑定。</summary>
     private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 自适应模式：载入存档会按存档值覆盖画布尺寸，需立即拉回控件实际大小
+        if (e.PropertyName is nameof(DiagramViewModel.CanvasWidth) or nameof(DiagramViewModel.CanvasHeight))
+        {
+            ApplyAutoFit();
+            return;
+        }
         if (e.PropertyName != nameof(DiagramViewModel.IsEditable)) return;
         if (IsEditable != Diagram.IsEditable)
             SetCurrentValue(IsEditableProperty, Diagram.IsEditable);
+    }
+
+    // ---- 画布自适应宿主大小（AutoFitCanvas） ----
+
+    private static void OnAutoFitCanvasChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var control = (DiagramCanvasControl)d;
+        var visibility = (bool)e.NewValue ? ScrollBarVisibility.Hidden : ScrollBarVisibility.Auto;
+        control.CanvasScroller.HorizontalScrollBarVisibility = visibility;
+        control.CanvasScroller.VerticalScrollBarVisibility = visibility;
+        control.ApplyAutoFit();
+    }
+
+    private void OnControlSizeChanged(object sender, SizeChangedEventArgs e) => ApplyAutoFit();
+
+    /// <summary>自适应模式下把画布逻辑尺寸收敛为控件可视区大小（越界部件/自由端被钳位，消除滚动条）。</summary>
+    private void ApplyAutoFit()
+    {
+        if (!AutoFitCanvas || _autoFitting) return;
+        var diagram = Diagram;
+        if (diagram is null) return;
+
+        // 布局早期 Viewport 可能尚未更新，回退到控件实际尺寸
+        var width = CanvasScroller.ViewportWidth;
+        var height = CanvasScroller.ViewportHeight;
+        if (width <= 0 || height <= 0) { width = ActualWidth; height = ActualHeight; }
+        if (width <= 0 || height <= 0) return;
+
+        _autoFitting = true;
+        try { diagram.Resize(width, height); }
+        finally { _autoFitting = false; }
     }
 
     /// <summary>右键按下：记录位置并按命中结果更新选中状态。</summary>
