@@ -57,7 +57,7 @@ public partial class DiagramCanvasControl : UserControl
 
     public static readonly DependencyProperty AutoFitCanvasProperty = DependencyProperty.Register(
         nameof(AutoFitCanvas), typeof(bool), typeof(DiagramCanvasControl),
-        new PropertyMetadata(false, OnAutoFitCanvasChanged));
+        new PropertyMetadata(true, OnAutoFitCanvasChanged));
 
     private bool _layoutLoaded;
     private bool _initialLoadDone;
@@ -109,6 +109,8 @@ public partial class DiagramCanvasControl : UserControl
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
         ClearLayoutCommand = new RelayCommand(_ => ClearLayout());
         InitializeComponent();
+        // DP 默认值不触发回调，初始状态需显式应用一次（默认开启自适应）
+        ApplyScrollBarVisibility();
         // 外部设置的 LayoutFilePath 在构造之后才生效，故统一在 Loaded 时首次载入
         Loaded += OnLoaded;
     }
@@ -128,9 +130,9 @@ public partial class DiagramCanvasControl : UserControl
     }
 
     /// <summary>
-    /// 画布自适应宿主大小：true 时画布逻辑尺寸自动收敛为控件可视区大小（隐藏滚动条，
-    /// 越界部件与自由端被钳位回画布内，存档里的 Width/Height 不再决定显示范围）；
-    /// false（默认）按存档/数据尺寸显示，超出部分滚动查看。
+    /// 画布自适应宿主大小：**默认 true**，画布逻辑尺寸自动收敛为控件可视区大小（隐藏滚动条，
+    /// 越界部件与自由端被钳位回画布内，存档里的 Width/Height 不再决定显示范围）。
+    /// 设为 false 可恢复"按存档尺寸显示、超出部分滚动查看"的行为。
     /// </summary>
     public bool AutoFitCanvas
     {
@@ -381,10 +383,16 @@ public partial class DiagramCanvasControl : UserControl
     private static void OnAutoFitCanvasChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var control = (DiagramCanvasControl)d;
-        var visibility = (bool)e.NewValue ? ScrollBarVisibility.Hidden : ScrollBarVisibility.Auto;
-        control.CanvasScroller.HorizontalScrollBarVisibility = visibility;
-        control.CanvasScroller.VerticalScrollBarVisibility = visibility;
+        control.ApplyScrollBarVisibility();
         control.ApplyAutoFit();
+    }
+
+    /// <summary>自适应开启时隐藏滚动条（画布恒等于可视区，无需滚动）；关闭时恢复按需滚动。</summary>
+    private void ApplyScrollBarVisibility()
+    {
+        var visibility = AutoFitCanvas ? ScrollBarVisibility.Hidden : ScrollBarVisibility.Auto;
+        CanvasScroller.HorizontalScrollBarVisibility = visibility;
+        CanvasScroller.VerticalScrollBarVisibility = visibility;
     }
 
     private void OnControlSizeChanged(object sender, SizeChangedEventArgs e) => ApplyAutoFit();

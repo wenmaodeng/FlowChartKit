@@ -7,6 +7,7 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 - **部件定义自管理**：名称、基准尺寸、端点、外观集中在一个 `INodeDefinition` 实现里，经 `NodeDefinitionRegistry` 注册（内置层只读 + 宿主覆盖层）
 - **内置部件**：LED 指示灯（四色循环）、开关（通/断），支持双击自切换与程序化状态下发
 - **宿主扩展**：业务部件类型由宿主常量定义（数值落盘），定义类 + 一次注册即可入画布与右键菜单
+- **自适应画布**：`AutoFitCanvas` 默认开启，画布尺寸自动跟随控件可视区，无水平/垂直滚动条；关闭则按存档尺寸显示并可滚动
 - **管路系统**：正交布线、端口吸附、自由端、流向与流动画
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
 - **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` 按编号下发，`NodeClickCommand` 上抛
