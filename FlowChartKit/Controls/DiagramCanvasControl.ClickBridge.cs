@@ -31,6 +31,23 @@ public partial class DiagramCanvasControl
         set => SetValue(NodeClickCommandProperty, value);
     }
 
+    public static readonly DependencyProperty AllowNodeInteractionProperty = DependencyProperty.Register(
+        nameof(AllowNodeInteraction), typeof(bool), typeof(DiagramCanvasControl),
+        new PropertyMetadata(true));
+
+    /// <summary>
+    /// 是否允许对部件进行单击/双击操作（默认 true）。设为 false 时：
+    /// 双击不再触发部件自切换（LED 换色、开关通断）与事件上抛，单击不再上抛
+    /// <see cref="NodeClick"/>/<see cref="NodeClickCommand"/>——用于纯展示屏等
+    /// 只读运行场景。选中/拖拽（<c>IsEditable</c>）、右键菜单（<c>AllowContextMenu</c>）
+    /// 各由独立开关控制，本属性不影响它们。
+    /// </summary>
+    public bool AllowNodeInteraction
+    {
+        get => (bool)GetValue(AllowNodeInteractionProperty);
+        set => SetValue(AllowNodeInteractionProperty, value);
+    }
+
     /// <summary>构造时挂接冒泡监听：子级 FlowNodeControl 的点击统一从这里出口。</summary>
     private void HookNodeClick()
         => AddHandler(FlowNodeControl.NodeClickEvent, new RoutedEventHandler(OnNodeClickBubbled));
@@ -38,6 +55,8 @@ public partial class DiagramCanvasControl
     private void OnNodeClickBubbled(object sender, RoutedEventArgs e)
     {
         if (e is not NodeClickEventArgs args) return;
+        // 兜底拦截：子级入口已在源头抑制，此处防御未来新增的上抛路径
+        if (!AllowNodeInteraction) { e.Handled = true; return; }
         NodeClick?.Invoke(args);
         NodeClickCommand?.Execute(args);
     }

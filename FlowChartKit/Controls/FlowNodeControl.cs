@@ -61,6 +61,9 @@ public class FlowNodeControl : Control
     // 宿主 ItemsControl 的 Canvas 面板缓存：可视树祖先不变，无需每次鼠标事件都遍历
     private Canvas? _itemsCanvas;
 
+    // 宿主 DiagramCanvasControl 缓存：读取 AllowNodeInteraction 等画布开关（同上只缓存成功结果）
+    private DiagramCanvasControl? _hostCanvas;
+
     static FlowNodeControl()
     {
         FocusableProperty.OverrideMetadata(typeof(FlowNodeControl),
@@ -309,6 +312,9 @@ public class FlowNodeControl : Control
             if (IsMouseCaptured) ReleaseMouseCapture();
             Cursor = Cursors.Arrow;
 
+            // 画布禁用部件操作（如纯展示屏）：双击既不自切换也不上抛
+            if (!AllowInteraction) return;
+
             var dblSpec = NodeEventSpec.Resolve(NodeDefinitionRegistry.Resolve(_vm.Kind).Events, NodeEventGesture.DoubleClick);
             if (dblSpec is not null)
             {
@@ -407,7 +413,8 @@ public class FlowNodeControl : Control
         }
 
         // 点击（未拖动）：仅运行模式（非编辑）上抛业务事件；编辑模式下点击只承担选中/拖拽
-        if (!_dragMoved && _vm is not null && Diagram is not { IsEditable: true })
+        // 画布禁用部件操作时同样不触发（选中仍由上方编辑分支/焦点逻辑承担）
+        if (!_dragMoved && _vm is not null && Diagram is not { IsEditable: true } && AllowInteraction)
         {
             var catalog = NodeDefinitionRegistry.Resolve(_vm.Kind).Events;
             if (catalog.Count == 0)
@@ -460,8 +467,9 @@ public class FlowNodeControl : Control
         _clickBackoffTimer?.Stop();
         var args = _pendingClickArgs;
         _pendingClickArgs = null;
-        // 上下文可能在挂起期间被切换（如 DataContext 更换），只上抛仍属于当前部件的挂起事件
-        if (args is not null && ReferenceEquals(_vm, args.Node))
+        // 上下文可能在挂起期间被切换（如 DataContext 更换），只上抛仍属于当前部件的挂起事件；
+        // 挂起窗口内画布关闭了部件操作（AllowNodeInteraction=false）则按取消处理
+        if (args is not null && ReferenceEquals(_vm, args.Node) && AllowInteraction)
             RaiseEvent(args);
     }
 
@@ -492,6 +500,30 @@ public class FlowNodeControl : Control
         }
         return null;
     }
+
+    /// <summary>沿可视树解析宿主画布控件并缓存（同 <see cref="GetItemsCanvas"/> 模式）。</summary>
+    private DiagramCanvasControl? GetHostCanvas()
+    {
+        if (_hostCanvas != null) return _hostCanvas;
+
+        DependencyObject? d = this;
+        while (d != null)
+        {
+            if (d is DiagramCanvasControl c)
+            {
+                _hostCanvas = c;
+                return c;
+            }
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 画布是否允许部件单击/双击操作（<see cref="DiagramCanvasControl.AllowNodeInteraction"/>）。
+    /// 脱离画布使用（如单元测试直接构造）时默认允许，保持向后兼容。
+    /// </summary>
+    private bool AllowInteraction => GetHostCanvas()?.AllowNodeInteraction ?? true;
 
     private static Brush CreateBrush(byte r, byte g, byte b)
     {

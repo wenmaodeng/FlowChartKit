@@ -52,7 +52,7 @@
         <!-- 全部操作（添加/流向/删除/保存/恢复/编辑模式）均在画布控件内完成 -->
         <!-- 设置流向/设置状态：控件把内置命令经 OneWayToSource 灌入 VM，VM 只认 ICommand -->
         <!-- 部件点击：方向相反——VM 提供命令、控件在点击时执行，同 Button.Command 用默认 OneWay 绑定 -->
-        <fc:DiagramCanvasControl IsEditable="False" AllowContextMenu="True"
+        <fc:DiagramCanvasControl IsEditable="False" AllowContextMenu="True" AllowNodeInteraction="True"
                                  SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}"
                                  SetNodeStateByNumberCommand="{Binding SetNodeStateByNumberCommand, Mode=OneWayToSource}"
                                  NodeClickCommand="{Binding NodeClickCommand}" />
