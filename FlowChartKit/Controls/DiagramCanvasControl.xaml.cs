@@ -23,6 +23,19 @@ namespace FlowChartKit.Controls;
 /// </summary>
 public partial class DiagramCanvasControl : UserControl
 {
+    /// <summary>画布默认底色（原 XAML 硬编码值 #FDFEFF）；冻结后作为依赖属性默认值可跨实例共享。</summary>
+    private static readonly Brush DefaultCanvasPaper;
+
+    static DiagramCanvasControl()
+    {
+        var paper = new SolidColorBrush(Color.FromRgb(0xFD, 0xFE, 0xFF));
+        paper.Freeze();
+        DefaultCanvasPaper = paper;
+        // Background 语义：画布底色。内部 Canvas 绑定到此属性，宿主设 Background 即刻生效
+        BackgroundProperty.OverrideMetadata(typeof(DiagramCanvasControl),
+            new FrameworkPropertyMetadata(DefaultCanvasPaper));
+    }
+
     private static readonly DependencyPropertyKey DiagramPropertyKey = DependencyProperty.RegisterReadOnly(
         nameof(Diagram), typeof(DiagramViewModel), typeof(DiagramCanvasControl),
         new PropertyMetadata(null));

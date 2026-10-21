@@ -1,5 +1,23 @@
 # FlowChartKit 发布说明
 
+## 1.2.2（2026-10-21）
+
+修复并设置 `DiagramCanvasControl` 的背景色：宿主设置 `Background` 即刻生效。
+
+### 变更
+
+- **`Background` 现在表示画布底色**：内部 `Canvas` 的背景由硬编码 `#FDFEFF` 改为绑定到控件自身的 `Background`，宿主设置后直接生效。
+  ```xml
+  <fc:DiagramCanvasControl Background="Red" ... />
+  ```
+- **默认值不变**：未设置 `Background` 时仍为原 `#FDFEFF`（通过 `OverrideMetadata` 设为属性默认值，冻结 Brush 共享），旧工程外观无变化。
+- 支持任意 `Brush`（纯色、渐变、图片画刷等），而非仅颜色字符串。
+
+### 说明
+
+- 此前 `Background` 无效的原因：控件可视树为 `UserControl → ScrollViewer → Canvas`，后两者的背景在 XAML 中硬编码，覆盖了父级背景。
+- 画布外衬底（mat，`#EEF2FA`）仍为固定值：仅在 `AutoFitCanvas="False"` 且画布小于控件时可见；自适应模式（默认）下画布铺满控件，该区域不可见。
+
 ## 1.2.1（2026-10-21）
 
 `AutoFitCanvas` 默认值由 `false` 改为 **`true`**——默认即"画布自适应控件大小、无滚动条"。

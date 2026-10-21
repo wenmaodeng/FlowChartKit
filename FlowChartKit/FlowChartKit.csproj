@@ -9,7 +9,7 @@
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
 
     <!-- 库身份与版本：宿主升级依据（SemVer），API 变更时递增并同步 CHANGELOG -->
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <PackageId>FlowChartKit</PackageId>
     <Authors>wenmaodeng</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

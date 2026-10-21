@@ -27,7 +27,7 @@
         <Canvas x:Name="DiagramCanvas"
                 Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
                 Height="{Binding Diagram.CanvasHeight, ElementName=Root}"
-                Background="#FDFEFF"
+                Background="{Binding Background, ElementName=Root}"
                 MouseLeftButtonDown="DiagramCanvas_MouseLeftButtonDown">
             <!-- 管路（下层） -->
             <ItemsControl ItemsSource="{Binding Diagram.Connections, ElementName=Root}"
