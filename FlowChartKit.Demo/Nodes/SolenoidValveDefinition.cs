@@ -21,6 +21,21 @@ public sealed class SolenoidValveDefinition : INodeDefinition
     private static readonly Pen s_linePen = MakePen(NodeRenderer.Outline, 1.3);
     private static readonly StreamGeometry s_body = BuildBody();
 
+    // 状态外观画刷：开=绿（通流）、关=红（断流）、未设置=默认浅蓝灰；全部冻结复用（实例无状态）
+    private static readonly Brush s_onFill = Frozen(0x4C, 0xAF, 0x7D);
+    private static readonly Brush s_onCoil = Frozen(0x2F, 0x8A, 0x59);
+    private static readonly Brush s_offFill = Frozen(0xE5, 0x88, 0x82);
+    private static readonly Brush s_offCoil = Frozen(0xC6, 0x4A, 0x42);
+    private static readonly Pen s_onLine = MakePen(s_onCoil, 1.3);
+    private static readonly Pen s_offLine = MakePen(s_offCoil, 1.3);
+
+    private static Brush Frozen(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
     public NodeKind Kind => DemoNodeKinds.SolenoidValve;
 
     public string DisplayName => "电磁阀";
@@ -40,14 +55,23 @@ public sealed class SolenoidValveDefinition : INodeDefinition
         new(NodeEventGesture.DoubleClick, "ToggleState", "切换开关状态"),
     ];
 
-    public void Render(DrawingContext dc)
+    public void Render(DrawingContext dc) => Render(dc, node: null!);
+
+    /// <summary>按 State 区分外观："开"绿色（线圈盒+引线）、"关"红色、其余默认配色。State 语义由宿主约定。</summary>
+    public void Render(DrawingContext dc, FlowChartKit.ViewModels.NodeViewModel node)
     {
+        var state = node?.State as string;
+        var on = state == "开";
+        var off = state == "关";
+        var coilFill = on ? s_onFill : off ? s_offFill : NodeRenderer.FillLight;
+        var linePen = on ? s_onLine : off ? s_offLine : s_linePen;
+
         // 蝶形阀体（两个顶点相接的三角形）
         dc.DrawGeometry(NodeRenderer.FillWhite, s_outlinePen, s_body);
-        // 线圈引线
-        dc.DrawLine(s_linePen, new Point(32, 14), new Point(32, 26));
-        // 顶部线圈盒
-        dc.DrawRectangle(NodeRenderer.FillLight, s_outlinePen, new Rect(22, 2, 20, 12));
+        // 线圈引线（颜色随状态）
+        dc.DrawLine(linePen, new Point(32, 14), new Point(32, 26));
+        // 顶部线圈盒（填充随状态）
+        dc.DrawRectangle(coilFill, s_outlinePen, new Rect(22, 2, 20, 12));
     }
 
     private static StreamGeometry BuildBody()

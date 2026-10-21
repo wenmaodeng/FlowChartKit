@@ -186,3 +186,90 @@ public sealed class PumpModuleDefinition : INodeDefinition
         NodeRenderer.DrawRoundRect(dc, 44, 286, 42, 14, 3, NodeRenderer.FillLight, NodeRenderer.OutlinePen);
     }
 }
+
+/// <summary>
+/// LED 指示灯（内置）：圆形灯座 + 状态色灯泡 + 高光。State 即颜色，用 <see cref="LedDefinition"/>
+/// 的公开常量约定（Gray/Red/Green/Blue，默认 Gray）；双击循环切换四色，
+/// 由定义经 <see cref="INodeDefinition.InvokeEvent"/> 自消费，宿主零代码开箱即用。
+/// 宿主也可经 SetNodeStateByNumberCommand 程序化设置（传任意常量值或自定义载荷——未匹配时按 Gray 渲染）。
+/// </summary>
+public sealed class LedDefinition : INodeDefinition
+{
+    /// <summary>State 载荷的颜色约定值（宿主程序化设置时与定义保持一致）。</summary>
+    public const string StateGray = "Gray";
+    public const string StateRed = "Red";
+    public const string StateGreen = "Green";
+    public const string StateBlue = "Blue";
+
+    /// <summary>双击循环顺序：灰 → 红 → 绿 → 蓝 → 灰。</summary>
+    public static readonly IReadOnlyList<string> ColorCycle = [StateGray, StateRed, StateGreen, StateBlue];
+
+    private static readonly Brush s_bezelFill = Frozen(0xC9, 0xD2, 0xDF);   // 金属灯座
+    private static readonly Brush s_grayBulb = Frozen(0xB2, 0xB9, 0xC6);    // 灰（熄灭）
+    private static readonly Brush s_redBulb = Frozen(0xE7, 0x4C, 0x3C);
+    private static readonly Brush s_greenBulb = Frozen(0x2E, 0xCC, 0x71);
+    private static readonly Brush s_blueBulb = Frozen(0x3D, 0x8B, 0xD9);
+    private static readonly Brush s_gloss = Frozen(0xFF, 0xFF, 0xFF, 0x8C); // 半透明白高光
+
+    private static Brush Frozen(byte r, byte g, byte b, byte a = 0xFF)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    public NodeKind Kind => NodeKind.Led;
+    public string DisplayName => "指示灯";
+    public (double W, double H) BaseSize => (32, 32);
+
+    // 指示灯同样接入流路：常规四端口（上下左右）
+    public IReadOnlyList<PortSpec> Ports => NodePorts.Standard;
+
+    public IReadOnlyList<NodeEventSpec> Events { get; } =
+    [
+        new(NodeEventGesture.DoubleClick, "ToggleColor", "切换颜色"),
+    ];
+
+    public bool InvokeEvent(ViewModels.NodeViewModel node, NodeEventGesture gesture, string eventId)
+    {
+        if (gesture != NodeEventGesture.DoubleClick || eventId != "ToggleColor")
+            return false;
+
+        // 循环取下一色；当前值不在约定内（宿主自定义载荷）时视为灰，从头开始
+        var current = node.State as string;
+        var index = IndexOfColor(current);
+        node.State = ColorCycle[(index + 1) % ColorCycle.Count];
+        return true;
+    }
+
+    public void Render(DrawingContext dc) => RenderBulb(dc, StateGray);
+
+    public void Render(DrawingContext dc, ViewModels.NodeViewModel node)
+        => RenderBulb(dc, node?.State as string);
+
+    private void RenderBulb(DrawingContext dc, string? state)
+    {
+        var center = new Point(16, 16);
+        // 金属灯座
+        dc.DrawEllipse(s_bezelFill, NodeRenderer.OutlinePen, center, 14, 14);
+        // 灯泡（未匹配的 State 载荷按灰渲染）
+        var bulb = state switch
+        {
+            StateRed => s_redBulb,
+            StateGreen => s_greenBulb,
+            StateBlue => s_blueBulb,
+            _ => s_grayBulb,
+        };
+        dc.DrawEllipse(bulb, NodeRenderer.OutlinePen14, center, 10, 10);
+        // 左上高光，营造玻璃质感
+        dc.DrawEllipse(s_gloss, null, new Point(11.5, 11.5), 3.2, 2.4);
+    }
+
+    private static int IndexOfColor(string? state) => state switch
+    {
+        StateRed => 1,
+        StateGreen => 2,
+        StateBlue => 3,
+        _ => 0,
+    };
+}

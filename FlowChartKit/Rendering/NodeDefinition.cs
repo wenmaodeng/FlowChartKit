@@ -31,11 +31,25 @@ public interface INodeDefinition
     void Render(DrawingContext dc);
 
     /// <summary>
+    /// 带部件上下文的外观绘制：需要按部件状态（<see cref="ViewModels.NodeViewModel.State"/>，宿主业务载荷、
+    /// 语义由定义自行解释）区分外观的定义 override 此版本；默认委托给无状态的 <see cref="Render(DrawingContext)"/>。
+    /// State 变化时控件会触发重绘。仍须无状态实例复用——状态从 node 参数读取，不得存字段。
+    /// </summary>
+    void Render(DrawingContext dc, ViewModels.NodeViewModel node) => Render(dc);
+
+    /// <summary>
     /// 事件目录：声明该部件支持哪些手势及对应语义事件（见 <see cref="NodeEventSpec"/>）。
     /// 默认空目录 = 未启用事件目录，控件按默认单击语义上抛（EventId 为 null，向后兼容）；
     /// 目录非空后仅目录中声明过的手势才触发事件。同一手势只应声明一个条目。
     /// </summary>
     IReadOnlyList<NodeEventSpec> Events => [];
+
+    /// <summary>
+    /// 内置手势处理：定义自驱动的交互（如内置部件双击切换自身状态）。返回 true 表示该手势
+    /// 已被定义消费（State 等变更已直接写入 node，控件不再向宿主上抛事件）；返回 false 则照常
+    /// 经 NodeClick 事件/命令上抛，由宿主分发。默认不处理（false）。仅在目录命中的手势上被调用。
+    /// </summary>
+    bool InvokeEvent(ViewModels.NodeViewModel node, NodeEventGesture gesture, string eventId) => false;
 }
 
 /// <summary>
@@ -59,6 +73,7 @@ public static class NodeDefinitionRegistry
             [NodeKind.NeedleWash] = new NeedleWashDefinition(),
             [NodeKind.PumpModule] = new PumpModuleDefinition(),
             [NodeKind.ThreeWayValve] = new ThreeWayValveDefinition(),
+            [NodeKind.Led] = new LedDefinition(),
         };
 
     // 自定义覆盖层：宿主注册/注销只作用于此层
@@ -89,6 +104,12 @@ public static class NodeDefinitionRegistry
             : s_builtIns.TryGetValue(kind, out var b)
                 ? b
                 : throw new InvalidOperationException($"部件类型 {kind} 没有注册的部件定义");
+
+    /// <summary>
+    /// 该类型当前是否由内置定义提供：未注册覆盖层（或覆盖已注销回退）即内置。
+    /// 宿主覆盖注册内置类型（如替换某内置部件外观）后归为扩展，供菜单分组等场景区分。
+    /// </summary>
+    public static bool IsBuiltIn(NodeKind kind) => !s_overrides.ContainsKey(kind);
 
     /// <summary>当前生效的全部定义快照：内置定义与自定义覆盖的并集（同类型时自定义优先），供菜单等枚举场景使用。
     /// 注册/注销时自动失效重建；注册频率远低于枚举频率，缓存有效。</summary>

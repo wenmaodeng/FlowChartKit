@@ -125,6 +125,11 @@ public class FlowNodeControl : Control
                 InvalidateVisual();
                 break;
 
+            // 宿主业务状态变化：外观可能随 State 区分（定义 Render(dc,node)），触发重绘
+            case nameof(NodeViewModel.State):
+                InvalidateVisual();
+                break;
+
             // 缩放后同步控件占位尺寸并重绘
             case nameof(NodeViewModel.ShapeWidth):
             case nameof(NodeViewModel.ShapeHeight):
@@ -180,7 +185,7 @@ public class FlowNodeControl : Control
 
         // 部件外观：NodeRenderer 按该类型的基准尺寸绘制，这里用缩放系数映射到实际尺寸
         dc.PushTransform(new ScaleTransform(vm.Scale, vm.Scale));
-        NodeRenderer.Render(dc, vm.Kind);
+        NodeRenderer.Render(dc, vm);
         dc.Pop();
 
         // 选中边框（橙色虚线矩形）
@@ -301,7 +306,12 @@ public class FlowNodeControl : Control
 
             var dblSpec = NodeEventSpec.Resolve(NodeDefinitionRegistry.Resolve(_vm.Kind).Events, NodeEventGesture.DoubleClick);
             if (dblSpec is not null)
+            {
+                // 内置手势处理：定义自消费（如 LED 双击换色）则不上抛宿主
+                if (NodeDefinitionRegistry.Resolve(_vm.Kind).InvokeEvent(_vm, NodeEventGesture.DoubleClick, dblSpec.EventId))
+                    return;
                 RaiseEvent(new NodeClickEventArgs(_vm, NodeEventGesture.DoubleClick, dblSpec.EventId));
+            }
             return;
         }
 
@@ -392,6 +402,9 @@ public class FlowNodeControl : Control
                 var spec = NodeEventSpec.Resolve(catalog, NodeEventGesture.Click);
                 if (spec is not null)
                 {
+                    // 内置手势处理：定义自消费则不上抛宿主
+                    if (NodeDefinitionRegistry.Resolve(_vm.Kind).InvokeEvent(_vm, NodeEventGesture.Click, spec.EventId))
+                        return;
                     var args = new NodeClickEventArgs(_vm, NodeEventGesture.Click, spec.EventId);
                     // 同时声明双击的部件：单击退避，双击将在判定窗口内取消挂起的单击
                     if (NodeEventSpec.NeedsClickBackoff(catalog))

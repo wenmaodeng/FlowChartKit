@@ -59,6 +59,20 @@ public class NodeDefinitionTests
     }
 
     [Fact]
+    public void BuiltInDefinitions_RenderWithNodeContext_WithoutException()
+    {
+        // 二参 DIM 默认委托一参实现：未 override 状态外观的定义经上下文调用必须照常渲染
+        var node = new NodeViewModel(NodeKind.SampleCup) { State = "任意宿主载荷" };
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.SampleCup);
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+            def.Render(dc, node);
+
+        Assert.True(visual.ContentBounds.Width > 0 && visual.ContentBounds.Height > 0);
+    }
+
+    [Fact]
     public void NodeViewModel_TakesNameSizePortsFromDefinition()
     {
         foreach (var kind in Enum.GetValues<NodeKind>())
@@ -135,6 +149,36 @@ public class NodeDefinitionTests
     public void Resolve_UnknownKind_Throws()
         => Assert.Throws<InvalidOperationException>(
             () => NodeDefinitionRegistry.Resolve((NodeKind)int.MaxValue));
+
+    [Fact]
+    public void IsBuiltIn_FalseWhenOverridden_TrueAfterUnregister()
+    {
+        var customKind = (NodeKind)1002;
+        var custom = new TestDefinition(customKind, "自定义", (10, 10),
+            [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
+        var wasteOverride = new TestDefinition(NodeKind.Waste, "覆盖废液", (10, 10),
+            [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
+        try
+        {
+            Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+
+            NodeDefinitionRegistry.Register(custom);
+            NodeDefinitionRegistry.Register(wasteOverride);
+
+            // 覆盖注册的内置类型与新类型都归扩展（菜单分组依据）
+            Assert.False(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+            Assert.False(NodeDefinitionRegistry.IsBuiltIn(customKind));
+            Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Led));
+        }
+        finally
+        {
+            NodeDefinitionRegistry.Unregister(customKind);
+            NodeDefinitionRegistry.Unregister(NodeKind.Waste);
+        }
+
+        // 注销后自动回退内置
+        Assert.True(NodeDefinitionRegistry.IsBuiltIn(NodeKind.Waste));
+    }
 
     [Fact]
     public void All_MergesBuiltInsAndOverrides()
@@ -231,5 +275,76 @@ public class NodeDefinitionTests
             new(NodeEventGesture.Click, "A"),
             new(NodeEventGesture.DoubleClick, "B"),
         ]));
+    }
+
+    // ── 内置 LED 指示灯 ──
+
+    [Fact]
+    public void Led_DoubleClick_CyclesGrayRedGreenBlue()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
+        var node = new NodeViewModel(NodeKind.Led);
+        Assert.Null(node.State); // 初始未设置，渲染按灰
+
+        // 双击循环：灰 → 红 → 绿 → 蓝 → 灰（未设置的 State 视为灰起点）
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateRed, node.State);
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateGreen, node.State);
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateBlue, node.State);
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateGray, node.State);
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateRed, node.State);
+    }
+
+    [Fact]
+    public void Led_InvokeEvent_UnknownStateStartsCycleAsGray()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
+        var node = new NodeViewModel(NodeKind.Led) { State = "宿主自定义载荷" };
+
+        // 未匹配约定色的 State 视为灰：下一次切到红
+        def.InvokeEvent(node, NodeEventGesture.DoubleClick, "ToggleColor");
+        Assert.Equal(LedDefinition.StateRed, node.State);
+    }
+
+    [Fact]
+    public void Led_InvokeEvent_OtherGesturesNotConsumed()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
+        var node = new NodeViewModel(NodeKind.Led);
+
+        // 只声明并消费双击；单击/未知 EventId 不消费（返回 false，照常上抛宿主）
+        Assert.False(def.InvokeEvent(node, NodeEventGesture.Click, "ToggleColor"));
+        Assert.False(def.InvokeEvent(node, NodeEventGesture.DoubleClick, "Unknown"));
+        Assert.Null(node.State);
+    }
+
+    [Fact]
+    public void Led_Render_AllStates_WithoutException()
+    {
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.Led);
+        var node = new NodeViewModel(NodeKind.Led);
+
+        foreach (var state in new object?[] { null, "宿主自定义载荷", LedDefinition.StateGray, LedDefinition.StateRed, LedDefinition.StateGreen, LedDefinition.StateBlue })
+        {
+            node.State = state;
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+                def.Render(dc, node);
+            Assert.True(visual.ContentBounds.Width > 0 && visual.ContentBounds.Height > 0);
+        }
+    }
+
+    [Fact]
+    public void BuiltInDefinitions_InvokeEvent_DefaultNotConsumed()
+    {
+        // 未实现内置手势处理的定义（DIM 默认）：调用返回 false，事件照常上抛宿主
+        var def = NodeDefinitionRegistry.Resolve(NodeKind.SampleCup);
+        var node = new NodeViewModel(NodeKind.SampleCup);
+        Assert.False(def.InvokeEvent(node, NodeEventGesture.Click, "Any"));
+        Assert.False(def.InvokeEvent(node, NodeEventGesture.DoubleClick, "Any"));
     }
 }

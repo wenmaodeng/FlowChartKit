@@ -58,6 +58,10 @@ public static class NodeRenderer
     public static void Render(DrawingContext dc, NodeKind kind)
         => NodeDefinitionRegistry.Resolve(kind).Render(dc);
 
+    /// <summary>带部件上下文绘制：定义可按 <see cref="ViewModels.NodeViewModel.State"/> 区分外观。</summary>
+    public static void Render(DrawingContext dc, ViewModels.NodeViewModel node)
+        => NodeDefinitionRegistry.Resolve(node.Kind).Render(dc, node);
+
     /// <summary>在指定中心绘制端口标记（浅色圆点 + 细描边），编辑模式下常显。</summary>
     public static void RenderPort(DrawingContext dc, double cx, double cy)
         => dc.DrawEllipse(FillWhite, OutlinePen12, new Point(cx, cy), 3.2, 3.2);

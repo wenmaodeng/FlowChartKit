@@ -46,6 +46,15 @@ public class MainViewModel : ObservableBase
         {
             if (p is not NodeClickEventArgs args) return;
             var node = args.Node;
+
+            // 事件目录语义分发示例：双击电磁阀切换开关状态（写回 State，属性对话框会实时刷新）
+            if (args.EventId == "ToggleState")
+            {
+                node.State = node.State as string is "开" ? "关" : "开";
+                StatusText = $"电磁阀 #{node.KindNumber} 已切换为 {node.State}";
+                return;
+            }
+
             // 事件目录启用后按 EventId 语义分发；未声明目录的部件 EventId 为 null
             var gestureText = args.EventId is null ? "" : $" [{args.EventId}]";
             StatusText = $"{(args.Gesture == NodeEventGesture.DoubleClick ? "双击" : "点击")}部件：" +

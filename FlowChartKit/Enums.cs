@@ -13,7 +13,8 @@ public enum NodeKind
     Centrifuge,    // 离心位
     NeedleWash,    // 洗针位
     PumpModule,    // 注射泵 + 多通阀
-    ThreeWayValve  // 三通阀
+    ThreeWayValve, // 三通阀
+    Led            // LED 指示灯（双击切换红/绿/蓝/灰）
 }
 
 /// <summary>端口出口方向</summary>

@@ -54,6 +54,34 @@ public partial class PropertiesDialog : Window
         AddNumber("缩放", () => node.Scale, v => node.Scale = v);
         AddSize(node);
         AddReadOnly("端口", string.Join("、", node.Ports.Select(p => $"{p.Id}({p.Dir})")));
+        AddState(node);
+    }
+
+    /// <summary>
+    /// 状态行：宿主经 SetNodeStateByNumberCommand / 部件事件写入的业务状态（object 载荷，控件不解释语义），
+    /// 此处仅作字符串化展示。宿主在对话框打开期间变更状态（如双击切换、命令下发）时实时刷新。
+    /// </summary>
+    private void AddState(NodeViewModel node)
+    {
+        var text = new TextBlock
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        Refresh();
+        // 具名处理器并在 Closed 退订（与尺寸行同一模式），防对话框生命周期被节点根住
+        PropertyChangedEventHandler handler = (_, e) =>
+        {
+            if (e.PropertyName == nameof(NodeViewModel.State))
+                Refresh();
+        };
+        node.PropertyChanged += handler;
+        Closed += (_, _) => node.PropertyChanged -= handler;
+
+        AddRow("状态", text);
+
+        void Refresh() => text.Text = node.State?.ToString() ?? "（未设置）";
     }
 
     /// <summary>尺寸行：缩放系数改动后实时刷新。</summary>

@@ -34,9 +34,15 @@ internal static class CanvasContextMenuBuilder
         else
         {
             var addNode = new MenuItem { Header = "添加部件" };
-            // 枚举注册表当前生效的定义（内置 + 宿主自定义），而非仅枚举值
+            // 两级分组：内置定义（注册表内置层）与扩展定义（宿主经覆盖层注册，含对内置类型的替换）
+            var builtInGroup = new MenuItem { Header = "内置部件" };
+            var customGroup = new MenuItem { Header = "扩展部件" };
             foreach (var def in NodeDefinitionRegistry.All)
-                addNode.Items.Add(NewItem(def.DisplayName, host.AddNodeCommand, def.Kind));
+                (NodeDefinitionRegistry.IsBuiltIn(def.Kind) ? builtInGroup : customGroup)
+                    .Items.Add(NewItem(def.DisplayName, host.AddNodeCommand, def.Kind));
+            addNode.Items.Add(builtInGroup);
+            if (customGroup.Items.Count > 0)
+                addNode.Items.Add(customGroup);
             menu.Items.Add(addNode);
             menu.Items.Add(NewItem("添加管路", host.AddConnectionCommand, null));
         }
