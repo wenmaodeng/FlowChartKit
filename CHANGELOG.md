@@ -1,5 +1,29 @@
 # FlowChartKit 发布说明
 
+## 1.2.4（2026-10-22）
+
+继续开放 `NodeRenderer` 中宿主自定义部件可能用到的颜色与工具，公共绘制面现已完整。
+
+### 新增（原 internal / private → public）
+
+- **画刷**：`PumpCoreFill`（0xCF,0xE0,0xF6 泵体阀芯浅蓝）、`PlungerFill`（0xB9,0xCD,0xE9 柱塞色）。
+- **画笔**：`HighlightPen`（2.0px 橙色虚线，端口吸附高亮）。
+- **工厂方法**：`Frozen(byte r, byte g, byte b)` 按 RGB 创建冻结纯色画刷，自定义部件可用它构造自己的配色；与 `MakePen(brush, thickness)` 配套使用。
+
+### 当前公共绘制面
+
+| 类别 | 成员 |
+|---|---|
+| 画刷 | `Outline`、`FillLight`、`FillWhite`、`Accent`、`PumpCoreFill`、`PlungerFill` |
+| 画笔 | `OutlinePen`(1.6)、`OutlinePen14`(1.4)、`OutlinePen12`(1.2)、`AccentPen`(1.2)、`AccentPen14`(1.4)、`AccentPen2`(2.0)、`HighlightPen`(2.0 橙虚线) |
+| 绘制 | `Render(dc, kind)`、`Render(dc, node)`、`RenderPort`、`RenderPortHighlight`、`DrawPath`、`DrawRoundRect` |
+| 工具 | `BuildGlyph`、`MakePen`、`Frozen` |
+
+### 说明
+
+- 仅开放 API，无行为变更；内置部件外观不受影响。
+- 路径/圆角矩形的内部几何缓存（`CachedPath` / `CachedRoundRect`）仍为私有：外部经 `DrawPath` / `DrawRoundRect` 即可享用缓存。
+
 ## 1.2.3（2026-10-22）
 
 修复宿主自定义部件无法使用绘制工具的问题：`NodeRenderer` 的画笔与绘制辅助此前为 `internal`，跨程序集不可见。

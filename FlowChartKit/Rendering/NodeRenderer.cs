@@ -17,8 +17,10 @@ public static class NodeRenderer
     public static readonly Brush FillLight = Frozen(0xEA, 0xF0, 0xFB);
     public static readonly Brush FillWhite = Frozen(0xF7, 0xFA, 0xFF);
     public static readonly Brush Accent = Frozen(0x2F, 0x5F, 0xA8);
-    internal static readonly Brush PumpCoreFill = Frozen(0xCF, 0xE0, 0xF6);
-    internal static readonly Brush PlungerFill = Frozen(0xB9, 0xCD, 0xE9);
+    /// <summary>泵体阀芯填充色（浅蓝），自定义泵类部件可与内置风格保持一致。</summary>
+    public static readonly Brush PumpCoreFill = Frozen(0xCF, 0xE0, 0xF6);
+    /// <summary>柱塞填充色（中蓝灰），用于泵的推杆等内部结构。</summary>
+    public static readonly Brush PlungerFill = Frozen(0xB9, 0xCD, 0xE9);
 
     /// <summary>共享描边画笔：1.6px 描边蓝；自定义部件建议优先复用（已冻结，跨实例共享）。</summary>
     public static readonly Pen OutlinePen = MakePen(Outline, 1.6);
@@ -33,9 +35,11 @@ public static class NodeRenderer
     /// <summary>共享强调画笔：2.0px 强调蓝，用于最粗的流道指示。</summary>
     public static readonly Pen AccentPen2 = MakePen(Accent, 2.0);
 
-    private static readonly Pen HighlightPen = CreateHighlightPen();
+    /// <summary>端口吸附高亮笔：2.0px 橙色虚线；宿主自定义高亮（如自定义吸附提示）可复用。</summary>
+    public static readonly Pen HighlightPen = CreateHighlightPen();
 
-    private static Brush Frozen(byte r, byte g, byte b)
+    /// <summary>按 RGB 创建冻结的纯色画刷（可跨实例共享）；自定义部件可用它构造自己的配色。</summary>
+    public static Brush Frozen(byte r, byte g, byte b)
     {
         var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
         brush.Freeze();
