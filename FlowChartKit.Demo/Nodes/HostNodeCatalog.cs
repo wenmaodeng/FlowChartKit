@@ -26,5 +26,9 @@ public static class HostNodeCatalog
         NodeDefinitionRegistry.Register(new ExhaustValveDefinition());
         NodeDefinitionRegistry.Register(new DigestionPotDefinition());
         NodeDefinitionRegistry.Register(new WaterPumpDefinition());
+        NodeDefinitionRegistry.Register(new FanDefinition());
+        NodeDefinitionRegistry.Register(new Cuvette2CmDefinition());
+        NodeDefinitionRegistry.Register(new ReactionCupDefinition());
+        NodeDefinitionRegistry.Register(new SampleCupDefinition());
     }
 }

@@ -18,4 +18,8 @@ public static class HostNodeKinds
     public const NodeKind ExhaustValve = (NodeKind)1018;     // 排气阀（上下左右各 1 端口）
     public const NodeKind DigestionPot = (NodeKind)1019;     // 消解锅（左右各 2 端口）
     public const NodeKind WaterPump = (NodeKind)1020;        // 水泵（左右各 1 端口）
+    public const NodeKind Fan = (NodeKind)1021;              // 风扇（上下左右各 1 端口）
+    public const NodeKind Cuvette2Cm = (NodeKind)1022;       // 2cm 比色皿（仅顶部居中 1 端口）
+    public const NodeKind ReactionCup = (NodeKind)1023;      // 反应杯（仅顶部居中 1 端口）
+    public const NodeKind SampleCup = (NodeKind)1024;        // 样品杯（仅顶部居中 1 端口）
 }
