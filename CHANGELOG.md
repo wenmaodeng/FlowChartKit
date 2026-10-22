@@ -1,5 +1,24 @@
 # FlowChartKit 发布说明
 
+## 1.2.3（2026-10-22）
+
+修复宿主自定义部件无法使用绘制工具的问题：`NodeRenderer` 的画笔与绘制辅助此前为 `internal`，跨程序集不可见。
+
+### 变更
+
+- **开放画笔（原 `internal` → `public`）**：`OutlinePen`（1.6）、`OutlinePen14`（1.4）、`OutlinePen12`（1.2）、`AccentPen`（1.2）、`AccentPen14`（1.4）、`AccentPen2`（2.0），均已冻结可跨实例共享。
+- **开放绘制辅助**：
+  - `DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)`：SVG 风格路径绘制，几何按 data 缓存冻结。
+  - `DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)`。
+  - `BuildGlyph(string text, double size, Point origin)`：短文本转冻结矢量轮廓（高 DPI 不糊）。
+  - `MakePen(Brush brush, double thickness)`：按自己的画刷生成圆头圆角的冻结画笔。
+- 同步更新 `INodeDefinition` 的 XML 注释：原注明"Pen 需自行创建并冻结"，现改为列出可复用的公开画笔与辅助方法。
+
+### 影响
+
+- 此前宿主自定义部件只能用到 4 个公开**画刷**（`Outline` / `FillLight` / `FillWhite` / `Accent`），`NodeRenderer.DrawPath`、`DrawRoundRect`、`OutlinePen`、`AccentPen` 等均报"找不到"，1.2.2 及更早版本的宿主需升级到此版本。
+- 仅新增/开放 API，无行为变更；内置部件外观不受影响。
+
 ## 1.2.2（2026-10-21）
 
 修复并设置 `DiagramCanvasControl` 的背景色：宿主设置 `Background` 即刻生效。
@@ -87,7 +106,13 @@
 
 - **部件定义自管理**：名称、基准尺寸、端点、外观集中在一个 `INodeDefinition` 实现里，经 `NodeDefinitionRegistry` 注册（双层结构：内置只读层 + 宿主覆盖层，注销覆盖后自动回退内置）。
   - 内置部件：LED 指示灯（`LedColorState` 四色）、开关（`SwitchState` 通/断），均支持双击自切换与 `SetNodeStateByNumberCommand` 程序化下发。
-  - 宿主扩展：`NodeKind` 仅含内置类型，业务部件类型由宿主以常量扩展（数值落盘，参考 Demo 的 `DemoNodeKinds` 1000-1009 区间约定）。
+  - 宿主扩展：`NodeKind` 仅含内置类型，业务部件类型由宿主以常量扩展（按数值落盘，升级库不影响已存档数值）：
+    ```csharp
+    public static class HostNodeKinds
+    {
+        public const NodeKind ThreeWayValve = (NodeKind)1000;   // 三通阀
+    }
+    ```
 - **管路系统**：正交布线（`OrthogonalRouter`）、端口吸附、自由端、流向（正向/反向/无）与流动画（卸载时自动停止，无时钟泄漏）。
 - **编辑/运行双模式**：`IsEditable` 控制编辑能力；编辑模式点击仅选中/拖拽，运行模式点击经 `NodeClickCommand` 冒泡给宿主 VM；运行模式下端点拖拽与模式切换互斥，中途切换自动终止。
 - **命令桥双向**：
@@ -106,7 +131,42 @@
 </Window>
 ```
 
-宿主自定义部件三步：实现 `INodeDefinition` → 启动时 `NodeDefinitionRegistry.Register` → （可选）以 `internal` 之外的公共类型放宿主程序集。完整示例见仓库 Demo 工程。
+宿主自定义部件：实现 `INodeDefinition` → 启动时 `NodeDefinitionRegistry.Register`。以三通阀为例：
+
+```csharp
+using System.Windows;
+using System.Windows.Media;
+using FlowChartKit;
+using FlowChartKit.Rendering;
+
+public sealed class ThreeWayValveDefinition : INodeDefinition
+{
+    public NodeKind Kind => HostNodeKinds.ThreeWayValve;
+    public string DisplayName => "三通阀";
+    public (double W, double H) BaseSize => (56, 52);
+
+    // 端口：Id + 相对位置（FX/FY 为宽高比例 0~1）+ 出口方向
+    public IReadOnlyList<PortSpec> Ports { get; } =
+    [
+        new PortSpec("L", 0,   0.5, PortDir.Left),
+        new PortSpec("R", 1,   0.5, PortDir.Right),
+        new PortSpec("B", 0.5, 1,   PortDir.Down),
+    ];
+
+    // 在基准尺寸坐标系内绘制（缩放由控件施加）；实例须无状态，画刷/几何建议冻结复用
+    public void Render(DrawingContext dc)
+    {
+        dc.DrawEllipse(NodeRenderer.FillWhite, NodeRenderer.OutlinePen, new Point(28, 26), 16, 16);
+        NodeRenderer.DrawPath(dc, "M14,26 L28,26 L42,26", null, NodeRenderer.AccentPen);
+        NodeRenderer.DrawPath(dc, "M28,26 L28,40", null, NodeRenderer.AccentPen);
+    }
+}
+
+// 启动时（注册/注销可在任意线程调用）
+NodeDefinitionRegistry.Register(new ThreeWayValveDefinition());
+```
+
+四向端口可直接用内置预设 `NodePorts.Standard`（T/B/L/R）。注册表为内置只读层 + 宿主覆盖层：注册后即入右键菜单与画布；`Unregister` 后内置类型回退内置定义，宿主扩展类型再解析会抛 `InvalidOperationException`。
 
 ### 已知限制
 

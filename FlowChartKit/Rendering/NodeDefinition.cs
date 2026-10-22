@@ -10,8 +10,10 @@ public readonly record struct PortSpec(string Id, double FX, double FY, PortDir 
 /// 部件定义：一种部件的名称、基准尺寸、端点与外观集中在一个类里自管理。
 /// 实现必须是无状态的（同一实例被多个部件控件复用）；
 /// 绘制用的 Brush/Pen/Geometry 建议冻结（Freeze）后复用，Render 只会在 UI 线程被调用。
-/// 程序集外的实现可使用 <see cref="NodeRenderer"/> 公开的标准画刷
-/// （Outline/FillLight/FillWhite/Accent）保持配色一致；Pen 需自行创建并冻结。
+/// 程序集外的实现可复用 <see cref="NodeRenderer"/> 公开的共享画刷与画笔保持配色一致：
+/// 画刷 Outline/FillLight/FillWhite/Accent，画笔 OutlinePen/OutlinePen14/OutlinePen12/
+/// AccentPen/AccentPen14/AccentPen2（均已冻结）；绘制辅助 DrawPath/DrawRoundRect/BuildGlyph
+/// 以及按自己的画刷造笔的 MakePen 同样公开可用，无需自行创建冻结笔刷。
 /// </summary>
 public interface INodeDefinition
 {

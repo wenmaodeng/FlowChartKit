@@ -20,12 +20,18 @@ public static class NodeRenderer
     internal static readonly Brush PumpCoreFill = Frozen(0xCF, 0xE0, 0xF6);
     internal static readonly Brush PlungerFill = Frozen(0xB9, 0xCD, 0xE9);
 
-    internal static readonly Pen OutlinePen = MakePen(Outline, 1.6);
-    internal static readonly Pen OutlinePen14 = MakePen(Outline, 1.4);
-    internal static readonly Pen OutlinePen12 = MakePen(Outline, 1.2);
-    internal static readonly Pen AccentPen = MakePen(Accent, 1.2);
-    internal static readonly Pen AccentPen14 = MakePen(Accent, 1.4);
-    internal static readonly Pen AccentPen2 = MakePen(Accent, 2.0);
+    /// <summary>共享描边画笔：1.6px 描边蓝；自定义部件建议优先复用（已冻结，跨实例共享）。</summary>
+    public static readonly Pen OutlinePen = MakePen(Outline, 1.6);
+    /// <summary>共享描边画笔：1.4px，用于阀体等中等轮廓。</summary>
+    public static readonly Pen OutlinePen14 = MakePen(Outline, 1.4);
+    /// <summary>共享描边画笔：1.2px，用于细节线条与端口标记。</summary>
+    public static readonly Pen OutlinePen12 = MakePen(Outline, 1.2);
+    /// <summary>共享强调画笔：1.2px 强调蓝，用于流道/内部线条。</summary>
+    public static readonly Pen AccentPen = MakePen(Accent, 1.2);
+    /// <summary>共享强调画笔：1.4px 强调蓝，用于较粗的流道指示。</summary>
+    public static readonly Pen AccentPen14 = MakePen(Accent, 1.4);
+    /// <summary>共享强调画笔：2.0px 强调蓝，用于最粗的流道指示。</summary>
+    public static readonly Pen AccentPen2 = MakePen(Accent, 2.0);
 
     private static readonly Pen HighlightPen = CreateHighlightPen();
 
@@ -36,7 +42,8 @@ public static class NodeRenderer
         return brush;
     }
 
-    internal static Pen MakePen(Brush brush, double thickness)
+    /// <summary>创建冻结的圆头圆角画笔（可跨实例共享）；自定义部件可用它基于自己的画刷生成统一风格的笔。</summary>
+    public static Pen MakePen(Brush brush, double thickness)
     {
         var pen = new Pen(brush, thickness);
         pen.LineJoin = PenLineJoin.Round;
@@ -94,14 +101,16 @@ public static class NodeRenderer
         return s_roundRectCache.GetOrAdd(key, geo);
     }
 
-    internal static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
+    /// <summary>按 SVG 风格路径数据绘制几何；路径解析结果按 data 缓存并冻结，重复渲染零开销。</summary>
+    public static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, CachedPath(data));
 
-    internal static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
+    /// <summary>绘制圆角矩形；按 (x,y,w,h,r) 缓存并冻结，供自定义部件的底座、面板等复用。</summary>
+    public static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
         => dc.DrawGeometry(fill, pen, CachedRoundRect(x, y, w, h, r));
 
     /// <summary>把短文本一次性转成矢量轮廓并冻结：分辨率无关（高 DPI 不糊），供各定义静态缓存复用。</summary>
-    internal static Geometry BuildGlyph(string text, double size, Point origin)
+    public static Geometry BuildGlyph(string text, double size, Point origin)
     {
         var ft = new FormattedText(
             text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
