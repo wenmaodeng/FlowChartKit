@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using System.Windows.Input;
 using FlowChartKit;
 using FlowChartKit.Core;
+using FlowChartKit.Demo.Nodes;
+using FlowChartKit.Demo.Pipes;
 using FlowChartKit.Rendering;
+using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Demo;
 
@@ -64,6 +68,11 @@ public class MainViewModel : ObservableBase
 
         // 设置 LED 状态：同一命令桥，第三个参数传 LedColorState 枚举（与 LedDefinition 的约定一致）
         ApplyLedStateCommand = new RelayCommand(_ => ExecuteSetLedState(), _ => LedNumber > 0);
+
+        // 管路样式测试：切换选中管路类型 / 生成四种管路对比示例 / 添加无名称部件
+        ApplyPipeKindCommand = new RelayCommand(_ => ApplyPipeKind(), _ => Diagram is not null);
+        BuildPipeDemoCommand = new RelayCommand(_ => BuildPipeDemo(), _ => Diagram is not null);
+        AddNamelessNodeCommand = new RelayCommand(_ => AddNamelessNode(), _ => Diagram is not null);
     }
 
     /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
@@ -118,6 +127,109 @@ public class MainViewModel : ObservableBase
         new[] { FlowMode.Forward, FlowMode.Reverse, FlowMode.None }
             .Select(m => new FlowModeItem(m, FlowModeDefaults.DisplayName(m)))
             .ToList();
+
+    private DiagramViewModel? _diagram;
+    /// <summary>
+    /// 画布的 Diagram（由窗口 Loaded 时注入）。宿主通常只经命令桥与画布交互，
+    /// Demo 直接持有它以便按坐标编排示例并读取 SelectedConnection。
+    /// </summary>
+    public DiagramViewModel? Diagram
+    {
+        get => _diagram;
+        set
+        {
+            if (!Set(ref _diagram, value)) return;
+            ApplyPipeKindCommand.RaiseCanExecuteChanged();
+            BuildPipeDemoCommand.RaiseCanExecuteChanged();
+            AddNamelessNodeCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>管路类型下拉条目：显示名 + 类型值；内置与宿主扩展（标注「扩展」）一并列出。</summary>
+    public sealed record PipeKindItem(PipeKind Value, string Text);
+
+    /// <summary>可选管路类型：取自 <see cref="PipeDefinitionRegistry.All"/>（App 启动注册后枚举）。</summary>
+    public IReadOnlyList<PipeKindItem> PipeKinds { get; } =
+        PipeDefinitionRegistry.All
+            .Select(d => new PipeKindItem(
+                d.Kind,
+                PipeDefinitionRegistry.IsBuiltIn(d.Kind) ? d.DisplayName : $"{d.DisplayName}（扩展）"))
+            .ToList();
+
+    private PipeKind _selectedPipeKind = DemoPipeKinds.Steam;
+    /// <summary>要应用到选中管路的类型（测试单条管路切换类型后颜色/粗细/动画即时变化）。</summary>
+    public PipeKind SelectedPipeKind
+    {
+        get => _selectedPipeKind;
+        set => Set(ref _selectedPipeKind, value);
+    }
+
+    private PipeKind _defaultPipeKind = PipeKind.Standard;
+    /// <summary>画布 <c>DefaultPipeKind</c>：新建管路（右键菜单默认项、不带参数的添加）使用的类型。</summary>
+    public PipeKind DefaultPipeKind
+    {
+        get => _defaultPipeKind;
+        set => Set(ref _defaultPipeKind, value);
+    }
+
+    /// <summary>把 <see cref="SelectedPipeKind"/> 应用到当前选中的管路。</summary>
+    public RelayCommand ApplyPipeKindCommand { get; }
+
+    /// <summary>生成四条不同类型的管路，便于直观对比颜色/粗细/流动画。</summary>
+    public RelayCommand BuildPipeDemoCommand { get; }
+
+    /// <summary>添加一个名称为空的部件，验证"名称允许为空"。</summary>
+    public RelayCommand AddNamelessNodeCommand { get; }
+
+    private static string NameOf(PipeKind kind) => PipeDefinitionRegistry.Resolve(kind).DisplayName;
+
+    private void ApplyPipeKind()
+    {
+        if (Diagram?.SelectedConnection is not { } conn)
+        {
+            StatusText = "未选中管路：先在画布上单击一条管路";
+            return;
+        }
+
+        conn.PipeKind = SelectedPipeKind;
+        StatusText = $"管路 #{conn.Number} 已切换为「{NameOf(SelectedPipeKind)}」";
+    }
+
+    private void BuildPipeDemo()
+    {
+        var d = Diagram;
+        if (d is null) { StatusText = "画布未就绪"; return; }
+
+        double y = 90;
+        double x2 = Math.Max(220, Math.Min(460, d.CanvasWidth - 80));
+
+        // 内置 + 三种宿主扩展：粗快（蒸汽）/ 不流动（废液）/ 细慢且反向（采样）
+        (PipeKind Kind, FlowMode Direction)[] rows =
+        [
+            (PipeKind.Standard, FlowMode.Forward),
+            (DemoPipeKinds.Steam, FlowMode.Forward),
+            (DemoPipeKinds.Waste, FlowMode.Forward),
+            (DemoPipeKinds.Sample, FlowMode.Reverse),
+        ];
+
+        foreach (var (kind, direction) in rows)
+        {
+            d.AddFreeConnection(new Point(80, y), new Point(x2, y), direction, kind);
+            y += 70;
+        }
+
+        StatusText = "已生成：普通 / 蒸汽(粗·快) / 废液(不流动) / 采样(细·慢·反向)";
+    }
+
+    private void AddNamelessNode()
+    {
+        var d = Diagram;
+        if (d is null) { StatusText = "画布未就绪"; return; }
+
+        // label 传空串 = 该部件不显示名称（传 null 才会回退到类型默认名）
+        var node = d.AddNode(DemoNodeKinds.ThreeWayValve, 560, 80, label: "");
+        StatusText = $"已添加无名称三通阀（Id={node.Id}）；属性对话框可再填回名称";
+    }
 
     private void ExecuteSetLedState()
     {

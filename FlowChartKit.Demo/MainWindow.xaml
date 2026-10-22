@@ -15,44 +15,74 @@
         <!-- 编号/方向由 ViewModel 收集，按钮执行注入的回调，视图代码后置不含任何业务参数 -->
         <Border DockPanel.Dock="Top" Background="#F7F7F7"
                 BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="8">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="管路编号" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Width="60" VerticalContentAlignment="Center"
-                         Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" />
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="管路编号" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Width="60" VerticalContentAlignment="Center"
+                             Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Text="方向" VerticalAlignment="Center" Margin="12,0,6,0" />
-                <ComboBox Width="90" VerticalContentAlignment="Center"
-                          ItemsSource="{Binding Directions}"
-                          DisplayMemberPath="Text"
-                          SelectedValuePath="Value"
-                          SelectedValue="{Binding Direction}" />
+                    <TextBlock Text="方向" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <ComboBox Width="90" VerticalContentAlignment="Center"
+                              ItemsSource="{Binding Directions}"
+                              DisplayMemberPath="Text"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding Direction}" />
 
-                <Button Content="设置流向" Padding="14,4" Margin="12,0,0,0"
-                        Command="{Binding ApplyCommand}" />
+                    <Button Content="设置流向" Padding="14,4" Margin="12,0,0,0"
+                            Command="{Binding ApplyCommand}" />
 
-                <TextBlock Text="LED颜色" VerticalAlignment="Center" Margin="16,0,6,0" />
-                <ComboBox Width="90" VerticalContentAlignment="Center"
-                          ItemsSource="{Binding LedColors}"
-                          DisplayMemberPath="Text"
-                          SelectedValuePath="Value"
-                          SelectedValue="{Binding SelectedLedColor}" />
+                    <TextBlock Text="LED颜色" VerticalAlignment="Center" Margin="16,0,6,0" />
+                    <ComboBox Width="90" VerticalContentAlignment="Center"
+                              ItemsSource="{Binding LedColors}"
+                              DisplayMemberPath="Text"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedLedColor}" />
 
-                <TextBlock Text="LED编号" VerticalAlignment="Center" Margin="12,0,6,0" />
-                <TextBox Width="60" VerticalContentAlignment="Center"
-                         Text="{Binding LedNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="LED编号" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <TextBox Width="60" VerticalContentAlignment="Center"
+                             Text="{Binding LedNumber, UpdateSourceTrigger=PropertyChanged}" />
 
-                <Button Content="设置LED状态" Padding="14,4" Margin="12,0,0,0"
-                        Command="{Binding ApplyLedStateCommand}" />
+                    <Button Content="设置LED状态" Padding="14,4" Margin="12,0,0,0"
+                            Command="{Binding ApplyLedStateCommand}" />
 
-                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
-                           Margin="16,0,0,0" Foreground="#555555" />
+                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
+                               Margin="16,0,0,0" Foreground="#555555" />
+                </StackPanel>
+
+                <!-- 管路样式可扩展 + 部件名称允许为空 的测试入口 -->
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="管路类型" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox Width="130" VerticalContentAlignment="Center"
+                              ItemsSource="{Binding PipeKinds}"
+                              DisplayMemberPath="Text"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding SelectedPipeKind}" />
+
+                    <Button Content="应用到选中管路" Padding="12,4" Margin="8,0,0,0"
+                            Command="{Binding ApplyPipeKindCommand}" />
+
+                    <TextBlock Text="新建默认" VerticalAlignment="Center" Margin="16,0,6,0" />
+                    <ComboBox Width="130" VerticalContentAlignment="Center"
+                              ItemsSource="{Binding PipeKinds}"
+                              DisplayMemberPath="Text"
+                              SelectedValuePath="Value"
+                              SelectedValue="{Binding DefaultPipeKind}" />
+
+                    <Button Content="生成管路示例" Padding="12,4" Margin="12,0,0,0"
+                            Command="{Binding BuildPipeDemoCommand}" />
+
+                    <Button Content="添加无名称部件" Padding="12,4" Margin="8,0,0,0"
+                            Command="{Binding AddNamelessNodeCommand}" />
+                </StackPanel>
             </StackPanel>
         </Border>
 
         <!-- 全部操作（添加/流向/删除/保存/恢复/编辑模式）均在画布控件内完成 -->
         <!-- 设置流向/设置状态：控件把内置命令经 OneWayToSource 灌入 VM，VM 只认 ICommand -->
         <!-- 部件点击：方向相反——VM 提供命令、控件在点击时执行，同 Button.Command 用默认 OneWay 绑定 -->
-        <fc:DiagramCanvasControl IsEditable="False" AllowContextMenu="True" AllowNodeInteraction="True"
+        <fc:DiagramCanvasControl x:Name="Canvas"
+                                 IsEditable="True" AllowContextMenu="True" AllowNodeInteraction="True"
+                                 DefaultPipeKind="{Binding DefaultPipeKind}"
                                  SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}"
                                  SetNodeStateByNumberCommand="{Binding SetNodeStateByNumberCommand, Mode=OneWayToSource}"
                                  NodeClickCommand="{Binding NodeClickCommand}" />
