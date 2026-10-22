@@ -43,7 +43,8 @@ public class DiagramViewModel : ObservableBase
         {
             if (SelectedConnection is { } c) RemoveConnection(c);
             else if (SelectedNode is { } n) RemoveNode(n);
-        }, _ => SelectedConnection != null || SelectedNode != null);
+            else if (SelectedTextBlock is { } t) RemoveTextItem(t);
+        }, _ => SelectedConnection != null || SelectedNode != null || SelectedTextBlock != null);
     }
 
     private double _canvasWidth;
@@ -91,6 +92,9 @@ public class DiagramViewModel : ObservableBase
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
 
+    /// <summary>文本模块（与部件 / 管路平级的第三种画布元素）。</summary>
+    public ObservableCollection<TextBlockViewModel> Texts { get; } = [];
+
     /// <summary>部件 → 相连管路 的索引：节点移动/缩放时只重算自己的管路，避免全图扫描。</summary>
     private readonly Dictionary<NodeViewModel, List<ConnectionViewModel>> _connectionsByNode = new();
 
@@ -130,11 +134,7 @@ public class DiagramViewModel : ObservableBase
             if (_selectedNode != null)
             {
                 _selectedNode.IsSelected = true;
-                if (_selectedConnection != null)
-                {
-                    _selectedConnection.IsSelected = false;
-                    _selectedConnection = null;
-                }
+                ClearOtherSelections(keepNode: _selectedNode, keepConnection: null, keepText: null);
             }
             Raise();
             Raise(nameof(SelectedConnection));
@@ -152,14 +152,53 @@ public class DiagramViewModel : ObservableBase
             if (_selectedConnection != null)
             {
                 _selectedConnection.IsSelected = true;
-                if (_selectedNode != null)
-                {
-                    _selectedNode.IsSelected = false;
-                    _selectedNode = null;
-                }
+                ClearOtherSelections(keepNode: null, keepConnection: _selectedConnection, keepText: null);
             }
             Raise();
             Raise(nameof(SelectedNode));
+        }
+    }
+
+    private TextBlockViewModel? _selectedTextBlock;
+
+    /// <summary>当前选中的文本模块；与部件 / 管路的选中互斥（同一时刻至多一个选中对象）。</summary>
+    public TextBlockViewModel? SelectedTextBlock
+    {
+        get => _selectedTextBlock;
+        set
+        {
+            if (_selectedTextBlock == value) return;
+            if (_selectedTextBlock != null) _selectedTextBlock.IsSelected = false;
+            _selectedTextBlock = value;
+            if (_selectedTextBlock != null)
+            {
+                _selectedTextBlock.IsSelected = true;
+                ClearOtherSelections(keepNode: null, keepConnection: null, keepText: _selectedTextBlock);
+            }
+            Raise();
+        }
+    }
+
+    /// <summary>选中互斥：清掉三个选中对象中未被保留（keep*）的那些。</summary>
+    private void ClearOtherSelections(NodeViewModel? keepNode, ConnectionViewModel? keepConnection, TextBlockViewModel? keepText)
+    {
+        if (_selectedConnection != null && _selectedConnection != keepConnection)
+        {
+            _selectedConnection.IsSelected = false;
+            _selectedConnection = null;
+            Raise(nameof(SelectedConnection));
+        }
+        if (_selectedNode != null && _selectedNode != keepNode)
+        {
+            _selectedNode.IsSelected = false;
+            _selectedNode = null;
+            Raise(nameof(SelectedNode));
+        }
+        if (_selectedTextBlock != null && _selectedTextBlock != keepText)
+        {
+            _selectedTextBlock.IsSelected = false;
+            _selectedTextBlock = null;
+            Raise(nameof(SelectedTextBlock));
         }
     }
 
@@ -185,6 +224,13 @@ public class DiagramViewModel : ObservableBase
         get => _alignmentSnapDistance;
         set => Set(ref _alignmentSnapDistance, Math.Max(0, value));
     }
+
+    /// <summary>
+    /// 临时关闭对齐吸附（拖动/移动过程中由控件在按住 Alt 时置位，用于精细调整）。
+    /// 与 <see cref="AlignmentSnapEnabled"/> 的区别：它只作用于当前这一次拖动，
+    /// 不改变宿主配置，拖动结束由控件复位；不吸附时同样不生成捕捉线。
+    /// </summary>
+    public bool SnapSuppressed { get; set; }
 
     /// <summary>当前需要绘制的对齐参考线；拖动结束时清空。由画布的对齐线图层绘制。</summary>
     public IReadOnlyList<AlignmentGuide> AlignmentGuides
@@ -216,7 +262,7 @@ public class DiagramViewModel : ObservableBase
     public NodeSnapResult SnapNode(NodeViewModel node, double x, double y)
     {
         List<AlignmentGuide>? guides = null;
-        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0)
+        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0 || SnapSuppressed)
             return new NodeSnapResult(x, y, Array.Empty<AlignmentGuide>());
 
         double w = node.ShapeWidth;
@@ -444,6 +490,58 @@ public class DiagramViewModel : ObservableBase
         }
     }
 
+    // ---- 文本模块 ----
+
+    /// <summary>分配下一个文本模块编号：现有最大编号 + 1（无则 1），与管路编号同一策略。</summary>
+    private int NextTextNumber()
+    {
+        int max = 0;
+        foreach (var t in Texts)
+            if (t.Number > max) max = t.Number;
+        return max + 1;
+    }
+
+    /// <summary>添加一个文本模块：编号自动分配，坐标钳到画布内。</summary>
+    public TextBlockViewModel AddTextItem(double x, double y,
+        string? content = null, double fontSize = TextBlockViewModel.DefaultFontSize, string? id = null)
+    {
+        var text = new TextBlockViewModel(content, x, y, fontSize, id)
+        {
+            X = Math.Clamp(x, 0, Math.Max(0, CanvasWidth)),
+            Y = Math.Clamp(y, 0, Math.Max(0, CanvasHeight)),
+            Diagram = this
+        };
+        text.Number = NextTextNumber();
+        Texts.Add(text);
+        return text;
+    }
+
+    /// <summary>移除文本模块。</summary>
+    public void RemoveTextItem(TextBlockViewModel text)
+    {
+        if (!Texts.Contains(text)) return;
+        if (SelectedTextBlock == text) SelectedTextBlock = null;
+        text.Diagram = null;   // 解除反向引用：被移除的文本不得再操作本图
+        Texts.Remove(text);
+    }
+
+    /// <summary>按编号查找文本模块；编号与添加顺序一致，从 1 开始。</summary>
+    public TextBlockViewModel? FindTextBlock(int number)
+        => Texts.FirstOrDefault(t => t.Number == number);
+
+    /// <summary>
+    /// 按编号修改文本内容。由画布控件的 SetTextByNumberCommand 命令桥调用
+    /// （参照管路的 <see cref="SetDirectionCommand"/>），也可直接调用。
+    /// </summary>
+    /// <returns>找到并修改了该编号的文本模块时为 true；编号不存在时为 false。</returns>
+    public bool SetTextContent(int number, string? content)
+    {
+        var text = FindTextBlock(number);
+        if (text is null) return false;
+        text.Content = content ?? "";
+        return true;
+    }
+
     // ---- 部件 → 管路 索引 ----
 
     /// <summary>与本部件相连的管路（索引直达），无相连时返回空表。
@@ -574,9 +672,16 @@ public class DiagramViewModel : ObservableBase
     // ---- 正交管路：拖动中间线段（水平段上下移 / 竖直段左右移） ----
 
     /// <summary>开始拖动管路中间线段：记录拖动前的绕行位置，供 Esc 回退。</summary>
+    // 当前拖动会话：记住"正在拖动的是哪一段"（Points 索引），供自身段落对齐时排除
+    private ConnectionViewModel? _segmentDragConn;
+    private int _segmentDragIndex = -1;
+
     public void BeginConnectionSegmentDrag(ConnectionViewModel conn)
     {
         ClearAlignmentGuides();
+        // 被拖段在第一次 Update 时确定（此时鼠标正压在该段上）
+        _segmentDragConn = conn;
+        _segmentDragIndex = -1;
         conn.BeginSegmentDrag();
     }
 
@@ -587,6 +692,10 @@ public class DiagramViewModel : ObservableBase
     /// </summary>
     public void UpdateConnectionSegmentDrag(ConnectionViewModel conn, bool horizontal, double pos)
     {
+        // 拖动开始的第一次更新：鼠标就压在被拖段上，此刻的"最近同走向段"即被拖段
+        if (ReferenceEquals(_segmentDragConn, conn) && _segmentDragIndex < 0)
+            _segmentDragIndex = DraggedSegmentIndex(conn, horizontal, pos);
+
         var snap = SnapConnectionSegment(conn, horizontal, pos);
         SetAlignmentGuides(snap.Guides);
         conn.UpdateSegmentDrag(horizontal, snap.Pos);
@@ -596,6 +705,7 @@ public class DiagramViewModel : ObservableBase
     public void EndConnectionSegmentDrag(ConnectionViewModel conn)
     {
         ClearAlignmentGuides();
+        ResetSegmentDragSession();
         conn.EndSegmentDrag();
     }
 
@@ -603,19 +713,30 @@ public class DiagramViewModel : ObservableBase
     public void CancelConnectionSegmentDrag(ConnectionViewModel conn)
     {
         ClearAlignmentGuides();
+        ResetSegmentDragSession();
         conn.CancelSegmentDrag();
+    }
+
+    /// <summary>结束拖动会话：清空"被拖段"记录。</summary>
+    private void ResetSegmentDragSession()
+    {
+        _segmentDragConn = null;
+        _segmentDragIndex = -1;
     }
 
     /// <summary>
     /// 拖动正交管路线段时的**对齐吸附**：与**其它管路**的水平 / 竖直段共线对齐（不考虑部件）——
     /// <paramref name="horizontal"/> 为 true 表示拖水平段，按 Y 吸附到其它管路的水平段；
-    /// 否则为拖竖直段，按 X 吸附到其它管路的竖直段（被拖管路自身不参与）。
+    /// 否则为拖竖直段，按 X 吸附到其它管路的竖直段。
+    /// **被拖管路自身的段也参与对齐**（与自己的起始段/结束段齐平，可把 Z 形拉成 L 形），
+    /// 但正在拖动的那一段除外——它跟随鼠标移动，参与的话会自吸附成零偏差。
     /// 取最近的一个候选（阈值内）并生成对应捕捉线；未启用或无候选时原样返回。
-    /// 开关与阈值沿用部件吸附的 <see cref="AlignmentSnapEnabled"/> / <see cref="AlignmentSnapDistance"/>。
+    /// 开关与阈值沿用部件吸附的 <see cref="AlignmentSnapEnabled"/> / <see cref="AlignmentSnapDistance"/>，
+    /// 并受 <see cref="SnapSuppressed"/>（按住 Alt 临时关闭）影响。
     /// </summary>
     public SegmentSnapResult SnapConnectionSegment(ConnectionViewModel conn, bool horizontal, double pos)
     {
-        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0)
+        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0 || SnapSuppressed)
             return new SegmentSnapResult(pos, Array.Empty<AlignmentGuide>());
 
         double best = _alignmentSnapDistance;
@@ -623,12 +744,18 @@ public class DiagramViewModel : ObservableBase
         double guideMin = 0, guideMax = 0;
         bool found = false;
 
+        // 自身"正在拖动的那一段"的索引（0 表示没有同走向的段，全部参与）
+        int selfSkip = SelfSkipSegmentIndex(conn, horizontal, pos);
+
         foreach (var other in Connections)
         {
-            if (ReferenceEquals(other, conn)) continue;
+            bool self = ReferenceEquals(other, conn);
             var pts = other.Points;
             for (int i = 1; i < pts.Length; i++)
             {
+                // 被拖段始终与鼠标同位置：跳过，否则零偏差会把其它候选全部挡掉
+                if (self && i == selfSkip) continue;
+
                 var a = pts[i - 1];
                 var b = pts[i];
 
@@ -657,6 +784,55 @@ public class DiagramViewModel : ObservableBase
         var guide = new AlignmentGuide(!horizontal, snapped, guideMin, guideMax);
         return new SegmentSnapResult(snapped, new[] { guide });
     }
+
+    /// <summary>
+    /// 取应被排除的自身段索引：优先用拖动会话中记录的被拖段（Points 重排后失效则回退"最近同走向段"）。
+    /// </summary>
+    private int SelfSkipSegmentIndex(ConnectionViewModel conn, bool horizontal, double pos)
+    {
+        if (ReferenceEquals(_segmentDragConn, conn) && _segmentDragIndex > 0)
+        {
+            var pts = conn.Points;
+            int i = _segmentDragIndex;
+            // 路径重算可能合并折点：索引仍指向同走向的段时才可信
+            if (i < pts.Length && (Math.Abs(pts[i - 1].Y - pts[i].Y) < 0.01) == horizontal)
+                return i;
+        }
+        return DraggedSegmentIndex(conn, horizontal, pos);
+    }
+
+    /// <summary>
+    /// 被拖管路自身"正在拖动的那一段"的索引（1 表示 Points[0]→Points[1]；0 表示没有同走向的段）。
+    /// 判定：同走向的段中离拖动坐标最近的那个——该段跟随鼠标移动，必然是最近的。
+    /// </summary>
+    private static int DraggedSegmentIndex(ConnectionViewModel conn, bool horizontal, double pos)
+    {
+        var pts = conn.Points;
+        int index = 0;
+        double best = double.MaxValue;
+        for (int i = 1; i < pts.Length; i++)
+        {
+            var a = pts[i - 1];
+            var b = pts[i];
+            if ((Math.Abs(a.Y - b.Y) < 0.01) != horizontal) continue;
+
+            double delta = Math.Abs((horizontal ? a.Y : a.X) - pos);
+            if (delta >= best) continue;
+            best = delta;
+            index = i;
+        }
+        return index;
+    }
+
+    /// <summary>
+    /// 部件到画布四边的剩余距离（px，贴边为 0）：左 / 上 / 右 / 下。
+    /// 拖动部件时用它实时显示边距读数（见 FlowNodeControl 的拖动提示）。
+    /// </summary>
+    public (double Left, double Top, double Right, double Bottom) GetNodeMargins(NodeViewModel node)
+        => (Math.Max(0, node.X),
+            Math.Max(0, node.Y),
+            Math.Max(0, CanvasWidth - (node.X + node.ShapeWidth)),
+            Math.Max(0, CanvasHeight - (node.Y + node.ShapeHeight)));
 
     /// <summary>
     /// 按鼠标位置（画布坐标）**等比**缩放部件，供编辑模式下拖动部件右下角的手柄使用：
@@ -724,6 +900,19 @@ public class DiagramViewModel : ObservableBase
             if (c.FreeTarget is { } ft) { cd.TargetFreeX = ft.X; cd.TargetFreeY = ft.Y; }
             data.Connections.Add(cd);
         }
+
+        foreach (var t in Texts)
+        {
+            data.Texts.Add(new TextBlockData
+            {
+                Id = t.Id,
+                Number = t.Number,
+                X = t.X,
+                Y = t.Y,
+                Content = t.Content,
+                FontSize = t.FontSize
+            });
+        }
         return data;
     }
 
@@ -731,6 +920,7 @@ public class DiagramViewModel : ObservableBase
     {
         SelectedConnection = null;
         SelectedNode = null;
+        SelectedTextBlock = null;
         SetSnapHighlight(null);
         Connections.Clear();
         _connectionsByNode.Clear();
@@ -742,6 +932,9 @@ public class DiagramViewModel : ObservableBase
             n.Diagram = null;
         }
         Nodes.Clear();
+        foreach (var t in Texts)
+            t.Diagram = null;
+        Texts.Clear();
     }
 
     public static DiagramViewModel FromData(DiagramData data)
@@ -835,6 +1028,15 @@ public class DiagramViewModel : ObservableBase
 
             Connections.Add(conn);
             conn.Recompute();
+        }
+
+        // 文本模块：编号>0 的以存档为准（0 表示未编号，保留 AddTextItem 的分配值）
+        foreach (var td in data.Texts)
+        {
+            var text = AddTextItem(td.X, td.Y, td.Content,
+                td.FontSize > 0 ? td.FontSize : TextBlockViewModel.DefaultFontSize, td.Id);
+            if (td.Number > 0)
+                text.Number = td.Number;
         }
     }
 }

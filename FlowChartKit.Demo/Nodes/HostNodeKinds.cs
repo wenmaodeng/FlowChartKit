@@ -22,4 +22,6 @@ public static class HostNodeKinds
     public const NodeKind Cuvette2Cm = (NodeKind)1022;       // 2cm 比色皿（仅顶部居中 1 端口）
     public const NodeKind ReactionCup = (NodeKind)1023;      // 反应杯（仅顶部居中 1 端口）
     public const NodeKind SampleCup = (NodeKind)1024;        // 样品杯（仅顶部居中 1 端口）
+    public const NodeKind SyringePump2 = (NodeKind)1025;     // 注射泵2（上下左右各 4 端口，共 16 个）
+    public const NodeKind BorderFrame = (NodeKind)1026;      // 边框（无端口）
 }

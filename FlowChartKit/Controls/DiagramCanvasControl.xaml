@@ -14,6 +14,9 @@
         <DataTemplate DataType="{x:Type vm:ConnectionViewModel}">
             <fc:PipeControl />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TextBlockViewModel}">
+            <fc:TextBlockItemControl />
+        </DataTemplate>
     </UserControl.Resources>
 
     <!-- 菜单项按右键时的选中状态在代码中动态构建 -->
@@ -42,6 +45,22 @@
                     <Style TargetType="ContentPresenter">
                         <Setter Property="Canvas.Left" Value="0" />
                         <Setter Property="Canvas.Top" Value="0" />
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+            </ItemsControl>
+            <!-- 文本模块（管路之上、部件之下）：左键/右键命中优先级低于部件 -->
+            <ItemsControl ItemsSource="{Binding Diagram.Texts, ElementName=Root}"
+                          Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
+                          Height="{Binding Diagram.CanvasHeight, ElementName=Root}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Canvas IsItemsHost="True" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Canvas.Left" Value="{Binding X}" />
+                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
                     </Style>
                 </ItemsControl.ItemContainerStyle>
             </ItemsControl>

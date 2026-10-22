@@ -1,9 +1,89 @@
 using System.Linq;
+using System.Windows;
 using FlowChartKit;
 using FlowChartKit.ViewModels;
 using Xunit;
 
 namespace FlowChartKit.Tests;
+
+/// <summary>
+/// 对齐吸附的临时关闭（拖动中按住 Alt）与部件的画布边距读数。
+/// </summary>
+public class SnapSuppressAndMarginTests
+{
+    [Fact]
+    public void SnapSuppressed_NodeKeepsRawPosition_AndNoGuides()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var anchor = d.AddNode(NodeKind.Led, 100, 100, "锚点");
+        var moving = d.AddNode(NodeKind.Switch, 300, 300, "被拖");
+
+        d.SnapSuppressed = true;
+        var result = d.SnapNode(moving, anchor.X + 2, 300);
+
+        Assert.Equal(anchor.X + 2, result.X, 3);
+        Assert.Empty(result.Guides);
+    }
+
+    [Fact]
+    public void SnapSuppressed_SegmentKeepsRawPosition()
+    {
+        var d = new DiagramViewModel(1000, 1000);
+        d.AddFreeConnection(new Point(300, 200), new Point(600, 350));
+        var conn = d.AddFreeConnection(new Point(0, 0), new Point(200, 120));
+
+        d.SnapSuppressed = true;
+        var snap = d.SnapConnectionSegment(conn, horizontal: true, pos: 203);
+
+        Assert.Equal(203, snap.Pos, 3);
+        Assert.Empty(snap.Guides);
+    }
+
+    [Fact]
+    public void SnapSuppressed_DoesNotChangeConfiguredSwitch()
+    {
+        var d = new DiagramViewModel(800, 600);
+        d.AlignmentSnapEnabled = false;
+
+        d.SnapSuppressed = true;
+        Assert.False(d.AlignmentSnapEnabled);
+
+        // 复位临时关闭后，仍按宿主配置（关闭）工作
+        d.SnapSuppressed = false;
+        Assert.False(d.AlignmentSnapEnabled);
+    }
+
+    [Fact]
+    public void GetNodeMargins_ReturnsDistancesToCanvasEdges()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var node = d.AddNode(NodeKind.Led, 100, 40, "灯");
+
+        var (left, top, right, bottom) = d.GetNodeMargins(node);
+
+        Assert.Equal(100, left, 3);
+        Assert.Equal(40, top, 3);
+        Assert.Equal(800 - 100 - node.ShapeWidth, right, 3);
+        Assert.Equal(600 - 40 - node.ShapeHeight, bottom, 3);
+    }
+
+    [Fact]
+    public void GetNodeMargins_ClampsAtZero_WhenNodeIsClampedInsideCanvas()
+    {
+        var d = new DiagramViewModel(800, 600);
+        var node = d.AddNode(NodeKind.Led, 0, 0, "灯");
+
+        var (left, top, _, _) = d.GetNodeMargins(node);
+        Assert.Equal(0, left, 3);
+        Assert.Equal(0, top, 3);
+
+        // 贴右下角：两个方向均为 0（不出现负值）
+        node.MoveTo(800 - node.ShapeWidth, 600 - node.ShapeHeight);
+        var margins = d.GetNodeMargins(node);
+        Assert.Equal(0, margins.Right, 3);
+        Assert.Equal(0, margins.Bottom, 3);
+    }
+}
 
 public class AlignmentSnapTests
 {

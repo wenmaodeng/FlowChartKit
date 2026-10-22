@@ -68,18 +68,38 @@ public interface IPipeDefinition
     /// <summary>管路线宽（选中态）。</summary>
     double SelectedThickness { get; }
 
+    /// <summary>
+    /// 流向为**停止**（<c>FlowMode.None</c>）时的管路颜色；返回 null 表示与 <see cref="Stroke"/> 同色
+    /// （默认实现，宿主不关心流向配色时无需重写）。
+    /// </summary>
+    Brush? StoppedStroke => null;
+
+    /// <summary>
+    /// 流向为**停止**（<c>FlowMode.None</c>）时的线宽；默认与 <see cref="Thickness"/> 相同。
+    /// 非正值同样按 <see cref="Thickness"/> 处理。
+    /// </summary>
+    double StoppedThickness => Thickness;
+
     /// <summary>流动画规格；<see cref="PipeFlowSpec.Enabled"/> 为 false 时该类型恒为实线。</summary>
     PipeFlowSpec Flow { get; }
 }
 
-/// <summary>内置普通管路定义：保持库原有外观（#6C9BD2 / 2.0px，选中 #E67E22 / 2.6px，{4,4} 0.6s 流动）。</summary>
+/// <summary>
+/// 内置普通管路定义：按流向区分颜色——正向/反向 #3161FF（主色，2.0px）、停止 #B1C4FF（浅色，2.0px）；
+/// 选中态 #E67E22 / 2.6px，流动画 {4,4} 0.6s（仅在有流向时流动，停止时恒为实线）。
+/// </summary>
 public sealed class StandardPipeDefinition : IPipeDefinition
 {
     public PipeKind Kind => PipeKind.Standard;
     public string DisplayName => "普通管路";
 
-    public Brush Stroke { get; } = NodeRenderer.Frozen(0x6C, 0x9B, 0xD2);
+    // 有流向（正向/反向）
+    public Brush Stroke { get; } = NodeRenderer.Frozen(0x31, 0x61, 0xFF);
     public double Thickness => 2.0;
+
+    // 流向停止
+    public Brush? StoppedStroke { get; } = NodeRenderer.Frozen(0xB1, 0xC4, 0xFF);
+    public double StoppedThickness => 2.0;
 
     public Brush SelectedStroke { get; } = NodeRenderer.Frozen(0xE6, 0x7E, 0x22);
     public double SelectedThickness => 2.6;

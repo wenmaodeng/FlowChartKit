@@ -265,7 +265,83 @@ public class FlowNodeControl : Control
         }
         double tx = (vm.ShapeWidth - _labelText.Width) / 2;
         dc.DrawText(_labelText, new Point(Math.Max(0, tx), vm.ShapeHeight + LabelGap));
+
+        // 拖动中：在四周显示到画布四边的距离（px）
+        if (_dragging && _dragMoved)
+            DrawMarginReadout(dc, vm, dpi);
     }
+
+    // ---- 拖动时的边距读数 ----
+
+    /// <summary>读数与图形/画布边的间距。</summary>
+    private const double MarginGap = 4;
+
+    /// <summary>读数底片高度（含内边距）。</summary>
+    private const double MarginChipHeight = 15;
+
+    /// <summary>读数底片圆角。</summary>
+    private const double MarginChipRadius = 3;
+
+    /// <summary>读数文字左右内边距。</summary>
+    private const double MarginChipPadX = 4;
+
+    /// <summary>读数底片描边：与对齐捕捉线同色（橙色），表示同属"拖动中的辅助提示"。</summary>
+    private static readonly Pen MarginChipPen = CreatePen(0xE6, 0x7E, 0x22, 1.0);
+
+    /// <summary>拖动中在部件四周画出到画布上/下/左/右的距离（px，贴边为 0）。</summary>
+    private void DrawMarginReadout(DrawingContext dc, NodeViewModel vm, double dpi)
+    {
+        var diagram = _diagram;
+        if (diagram is null) return;
+
+        var (left, top, right, bottom) = diagram.GetNodeMargins(vm);
+        double w = vm.ShapeWidth;
+        double h = vm.ShapeHeight;
+
+        // 可见范围（控件坐标）：贴边时把读数压回画布内，避免画到画布外看不见
+        double minX = -vm.X + 2, maxX = -vm.X + diagram.CanvasWidth - 2;
+        double minY = -vm.Y + 2, maxY = -vm.Y + diagram.CanvasHeight - 2;
+
+        var tUp = MarginText(top, dpi);
+        var tDown = MarginText(bottom, dpi);
+        var tLeft = MarginText(left, dpi);
+        var tRight = MarginText(right, dpi);
+
+        DrawMarginChip(dc, tUp, w / 2 - ChipWidth(tUp) / 2, -MarginGap - MarginChipHeight,
+            minX, maxX, minY, maxY);
+        // 下方读数让开标签带，画在标签下方
+        DrawMarginChip(dc, tDown, w / 2 - ChipWidth(tDown) / 2, Height + MarginGap,
+            minX, maxX, minY, maxY);
+        DrawMarginChip(dc, tLeft, -MarginGap - ChipWidth(tLeft), (h - MarginChipHeight) / 2,
+            minX, maxX, minY, maxY);
+        DrawMarginChip(dc, tRight, w + MarginGap, (h - MarginChipHeight) / 2,
+            minX, maxX, minY, maxY);
+    }
+
+    private static double ChipWidth(FormattedText text)
+        => text.Width + MarginChipPadX * 2;
+
+    private static void DrawMarginChip(DrawingContext dc, FormattedText text, double x, double y,
+        double minX, double maxX, double minY, double maxY)
+    {
+        double w = ChipWidth(text);
+
+        x = Math.Clamp(x, minX, Math.Max(minX, maxX - w));
+        y = Math.Clamp(y, minY, Math.Max(minY, maxY - MarginChipHeight));
+
+        dc.DrawRoundedRectangle(Brushes.White, MarginChipPen,
+            new Rect(x, y, w, MarginChipHeight), MarginChipRadius, MarginChipRadius);
+        dc.DrawText(text, new Point(x + MarginChipPadX, y + (MarginChipHeight - text.Height) / 2));
+    }
+
+    private static FormattedText MarginText(double value, double dpi)
+        => new(((int)Math.Round(value)).ToString(),
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Arial"),
+            10.0,
+            LabelBrush,
+            dpi);
 
     /// <summary>序号文本按数值/DPI 缓存，避免每帧构造 FormattedText。</summary>
     private FormattedText GetNumberText(int value, double dpi)
@@ -469,10 +545,7 @@ public class FlowNodeControl : Control
         // 拖拽中途切出编辑模式：立即终止本次拖拽，避免模式切换的中间态继续移动部件
         if (Diagram is not { IsEditable: true })
         {
-            _dragging = false;
-            ClearAlignmentGuides();
-            if (IsMouseCaptured) ReleaseMouseCapture();
-            Cursor = Cursors.Arrow;
+            FinishDrag();
             return;
         }
 
@@ -497,6 +570,9 @@ public class FlowNodeControl : Control
         var diagram = Diagram;
         if (diagram != null)
         {
+            // 按住 Alt 精细调整：本次拖动内跳过吸附（不改变宿主的 AlignmentSnapEnabled 配置）
+            diagram.SnapSuppressed = IsSnapSuppressed();
+
             nx = Math.Clamp(nx, 0, Math.Max(0, diagram.CanvasWidth - _vm.ShapeWidth));
             ny = Math.Clamp(ny, 0, Math.Max(0, diagram.CanvasHeight - _vm.ShapeHeight));
 
@@ -508,6 +584,24 @@ public class FlowNodeControl : Control
         }
         // 一次逻辑移动只触发一次 GeometryChanged，相连管路每帧只重算一次
         _vm.MoveTo(nx, ny);
+
+        // 边距读数画在本控件上（X/Y 变化不触发重绘），拖动中每帧主动重绘
+        InvalidateVisual();
+    }
+
+    /// <summary>是否临时关闭对齐吸附：拖动中按住 Alt（精细调整）。</summary>
+    private static bool IsSnapSuppressed()
+        => (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+    /// <summary>结束拖动：复位临时吸附标志、清除捕捉线与光标，并擦掉边距读数。</summary>
+    private void FinishDrag()
+    {
+        _dragging = false;
+        if (_vm?.Diagram is { } d) d.SnapSuppressed = false;
+        ClearAlignmentGuides();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        Cursor = Cursors.Arrow;
+        InvalidateVisual();
     }
 
     /// <summary>清除画布上的对齐参考线（拖动结束/取消时调用；图模型为空时空转）。</summary>
@@ -523,9 +617,7 @@ public class FlowNodeControl : Control
             return;
         }
         if (!_dragging) return;
-        _dragging = false;
-        ClearAlignmentGuides();
-        Cursor = Cursors.Arrow;
+        FinishDrag();
     }
 
     /// <summary>收尾缩放拖拽：提交当前缩放（Esc 回退走 <see cref="OnKeyDown"/>）。</summary>
@@ -572,10 +664,7 @@ public class FlowNodeControl : Control
         }
         if (_dragging)
         {
-            _dragging = false;
-            ClearAlignmentGuides();
-            if (IsMouseCaptured) ReleaseMouseCapture();
-            Cursor = Cursors.Arrow;
+            FinishDrag();
         }
 
         // 点击（未拖动）：仅运行模式（非编辑）上抛业务事件；编辑模式下点击只承担选中/拖拽

@@ -30,5 +30,7 @@ public static class HostNodeCatalog
         NodeDefinitionRegistry.Register(new Cuvette2CmDefinition());
         NodeDefinitionRegistry.Register(new ReactionCupDefinition());
         NodeDefinitionRegistry.Register(new SampleCupDefinition());
+        NodeDefinitionRegistry.Register(new SyringePump2Definition());
+        NodeDefinitionRegistry.Register(new BorderFrameDefinition());
     }
 }

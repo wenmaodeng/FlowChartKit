@@ -91,6 +91,36 @@ public class PipeDefinitionTests
     }
 
     [Fact]
+    public void BuiltIn_Standard_ColorsDifferByDirection()
+    {
+        var def = PipeDefinitionRegistry.Resolve(PipeKind.Standard);
+
+        // 有流向（正向/反向）：主色 #3161FF；停止：浅色 #B1C4FF
+        Assert.Equal(Color(0x31, 0x61, 0xFF), ColorOf(def.Stroke));
+        Assert.Equal(Color(0xB1, 0xC4, 0xFF), ColorOf(def.StoppedStroke));
+        Assert.Equal(def.Thickness, def.StoppedThickness, 3);
+    }
+
+    [Fact]
+    public void CustomDefinition_WithoutStoppedStroke_FallsBackToStroke()
+    {
+        // 宿主未指定停止色：与接口默认实现一致（不重写即沿用普通色）
+        IPipeDefinition custom = new SteamPipeDefinition();
+
+        Assert.Null(custom.StoppedStroke);
+        Assert.Equal(custom.Thickness, custom.StoppedThickness, 3);
+    }
+
+    private static System.Windows.Media.Color Color(byte r, byte g, byte b)
+        => System.Windows.Media.Color.FromRgb(r, g, b);
+
+    private static System.Windows.Media.Color ColorOf(Brush? brush)
+    {
+        var solid = Assert.IsType<SolidColorBrush>(brush);
+        return solid.Color;
+    }
+
+    [Fact]
     public void FlowSpec_Create_FallsBackOnInvalidInput()
     {
         Assert.Equal(8.0, PipeFlowSpec.Create(null, TimeSpan.FromSeconds(1)).Cycle);

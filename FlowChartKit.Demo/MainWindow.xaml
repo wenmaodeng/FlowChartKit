@@ -75,6 +75,23 @@
                             Command="{Binding AddNamelessNodeCommand}" />
                 </StackPanel>
 
+                <!-- 文本模块：按编号远程修改内容（命令桥 OneWayToSource） -->
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="文本编号" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Width="60" VerticalContentAlignment="Center"
+                             Text="{Binding TextNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="内容" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <TextBox Width="180" VerticalContentAlignment="Center"
+                             Text="{Binding TextContent, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Button Content="修改文本" Padding="14,4" Margin="8,0,0,0"
+                            Command="{Binding ApplyTextCommand}" />
+
+                    <TextBlock Text="提示：右键画布空白处 → 添加文本模块；右键文本 → 属性 可编辑内容与字号"
+                               VerticalAlignment="Center" Margin="16,0,0,0" Foreground="#777777" />
+                </StackPanel>
+
                 <!-- 连线布局（垂直水平 / 直线 / 弧线）与中间线段拖动 的测试入口 -->
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <TextBlock Text="连线布局" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -109,6 +126,7 @@
                                  DefaultPipeRouting="{Binding DefaultRouting}"
                                  SetDirectionByNumberCommand="{Binding SetDirectionByNumberCommand, Mode=OneWayToSource}"
                                  SetNodeStateByNumberCommand="{Binding SetNodeStateByNumberCommand, Mode=OneWayToSource}"
+                                 SetTextByNumberCommand="{Binding SetTextByNumberCommand, Mode=OneWayToSource}"
                                  NodeClickCommand="{Binding NodeClickCommand}" />
     </DockPanel>
 

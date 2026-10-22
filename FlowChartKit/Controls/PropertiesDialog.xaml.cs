@@ -33,6 +33,10 @@ public partial class PropertiesDialog : Window
                 dialog.Title = $"管路属性 — {connection.DisplayName}";
                 dialog.BuildConnection(connection);
                 break;
+            case TextBlockViewModel text:
+                dialog.Title = $"文本属性 — #{text.Number}";
+                dialog.BuildTextBlock(text);
+                break;
             default:
                 return;
         }
@@ -56,6 +60,21 @@ public partial class PropertiesDialog : Window
         AddSize(node);
         AddReadOnly("端口", string.Join("、", node.Ports.Select(p => $"{p.Id}({p.Dir})")));
         AddState(node);
+    }
+
+    /// <summary>文本模块属性：内容 / 字号 / 位置（文本即"名称"，回车或失焦提交并即时刷新画布）。</summary>
+    private void BuildTextBlock(TextBlockViewModel text)
+    {
+        AddReadOnly("Id", text.Id);
+        AddReadOnly("编号", text.Number.ToString());
+        AddText("内容", () => text.Content, v =>
+        {
+            text.Content = v;
+            Title = $"文本属性 — #{text.Number}";
+        });
+        AddNumber("字号", () => text.FontSize, v => text.FontSize = v);
+        AddNumber("位置 X", () => text.X, v => text.X = v);
+        AddNumber("位置 Y", () => text.Y, v => text.Y = v);
     }
 
     /// <summary>

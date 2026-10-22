@@ -37,6 +37,8 @@ public class PipeControl : Control
     // 已应用样式的管路类型：类型未变则不重建画笔（宿主重新注册同类型定义时由 Resolve 取新定义）
     private PipeKind _styleKind = PipeKind.Standard;
     private IPipeDefinition _def = new StandardPipeDefinition();
+    // 已应用样式时的流向（是否为"停止"）：流向变了要换停止色/流动色
+    private bool _styleStopped = true;
 
     public static readonly DependencyProperty DashOffsetProperty = DependencyProperty.Register(
         nameof(DashOffset), typeof(double), typeof(PipeControl),
@@ -154,6 +156,8 @@ public class PipeControl : Control
                 InvalidateVisual();
                 break;
             case nameof(ConnectionViewModel.Direction):
+                // 流向变化可能改变颜色（停止色 / 流动色）：重建画笔后再算动画
+                ApplyStyle(_vm.PipeKind, force: true);
                 UpdateFlowAnimation();
                 InvalidateVisual();
                 break;
@@ -169,7 +173,10 @@ public class PipeControl : Control
         }
     }
 
-    /// <summary>按管路类型重建画笔：实线笔冻结共享；虚线笔每控件一对，共享可变的 DashStyle（DashOffset 动画驱动）。</summary>
+    /// <summary>
+    /// 按管路类型与当前流向重建画笔：停止时用 <see cref="IPipeDefinition.StoppedStroke"/>（未指定则沿用普通色），
+    /// 有流向时用 <see cref="IPipeDefinition.Stroke"/>。实线笔冻结共享；虚线笔每控件一对，共享可变的 DashStyle（DashOffset 动画驱动）。
+    /// </summary>
     private void ApplyStyle(PipeKind kind, bool force = false)
     {
         if (!force && _styleKind == kind && _def is not null) return;
@@ -178,13 +185,21 @@ public class PipeControl : Control
         _def = def;
         _styleKind = kind;
 
-        _solidPen = MakePen(def.Stroke, def.Thickness, dash: null, freeze: true);
+        // 流向为"停止"时改用停止色（宿主未指定则与普通态一致）
+        bool stopped = _vm?.Direction == FlowMode.None;
+        _styleStopped = stopped;
+        var stroke = stopped ? def.StoppedStroke ?? def.Stroke : def.Stroke;
+        double thickness = stopped
+            ? (def.StoppedThickness > 0 ? def.StoppedThickness : def.Thickness)
+            : def.Thickness;
+
+        _solidPen = MakePen(stroke, thickness, dash: null, freeze: true);
         _solidPenSelected = MakePen(def.SelectedStroke, def.SelectedThickness, dash: null, freeze: true);
-        _badgePen = MakePen(def.Stroke, 1.6, dash: null, freeze: true);
+        _badgePen = MakePen(stroke, 1.6, dash: null, freeze: true);
         _badgePenSelected = MakePen(def.SelectedStroke, 1.6, dash: null, freeze: true);
 
         _dashStyle.Dashes = new DoubleCollection(def.Flow.Dash);
-        _dashPen = MakePen(def.Stroke, def.Thickness, _dashStyle, freeze: false);
+        _dashPen = MakePen(stroke, thickness, _dashStyle, freeze: false);
         _dashPenSelected = MakePen(def.SelectedStroke, def.SelectedThickness, _dashStyle, freeze: false);
     }
 
@@ -247,8 +262,8 @@ public class PipeControl : Control
             }
             else
             {
-                for (int i = 1; i < pts.Length; i++)
-                    ctx.LineTo(pts[i], true, false);
+                // 折线（正交 / 直线）：直角拐角按相邻段长加圆角，段越短圆角越小
+                BuildRoundedPolyline(ctx, pts);
             }
         }
         geo.Freeze();
@@ -265,6 +280,44 @@ public class PipeControl : Control
 
     /// <summary>命中折线的弧线采样段数：16 段时与曲线的最大偏差已远小于 1px。</summary>
     private const int CurveHitSamples = 16;
+
+    /// <summary>折线拐角圆角的目标半径（px）：实际半径受相邻段长钳制（不超过段长一半），段越短圆角越小。</summary>
+    internal const double CornerRadius = 10;
+
+    /// <summary>
+    /// 画折线：拐角处用二次贝塞尔做圆角（控制点取拐角顶点，圆弧与两邻段相切）。
+    /// 共线点（无转折）与过短的段保持直线；首尾顶点不圆角。internal 供几何测试。
+    /// </summary>
+    internal static void BuildRoundedPolyline(StreamGeometryContext ctx, Point[] pts)
+    {
+        ctx.BeginFigure(pts[0], false, false);
+        for (int i = 1; i < pts.Length - 1; i++)
+        {
+            var cur = pts[i];
+            var inSeg = cur - pts[i - 1];
+            var outSeg = pts[i + 1] - cur;
+            double inLen = inSeg.Length;
+            double outLen = outSeg.Length;
+
+            // 半径钳到两邻段长的一半（相邻两个拐角恰好可以各占半段，互不重叠）
+            double r = Math.Min(CornerRadius, Math.Min(inLen, outLen) / 2);
+            // 共线判定：叉积 / (|in||out|) = sinθ，几乎共线时无拐角可圆
+            bool collinear = inLen * outLen > 0
+                && Math.Abs(inSeg.X * outSeg.Y - inSeg.Y * outSeg.X) < 0.01 * inLen * outLen;
+
+            if (r < 0.5 || collinear)
+            {
+                ctx.LineTo(cur, true, false);
+                continue;
+            }
+
+            var inDir = new Vector(inSeg.X / inLen, inSeg.Y / inLen);
+            var outDir = new Vector(outSeg.X / outLen, outSeg.Y / outLen);
+            ctx.LineTo(cur - inDir * r, true, false);
+            ctx.QuadraticBezierTo(cur, cur + outDir * r, true, false);
+        }
+        ctx.LineTo(pts[^1], true, false);
+    }
 
     /// <summary>把三次贝塞尔采样成折线（含首尾点，共 samples + 1 个顶点）。</summary>
     private static Point[] SampleBezier(Point p0, Point c1, Point c2, Point p3, int samples)
@@ -342,8 +395,9 @@ public class PipeControl : Control
         EnsureDiagramHook();
         var pts = vm.Points;
 
-        // 画笔按管路类型构建（宿主可在运行中更换类型或重新注册定义）
-        if (_styleKind != vm.PipeKind) ApplyStyle(vm.PipeKind);
+        // 画笔按管路类型与流向构建（宿主可在运行中更换类型/定义或切换流向）
+        if (_styleKind != vm.PipeKind || _styleStopped != (vm.Direction == FlowMode.None))
+            ApplyStyle(vm.PipeKind, force: true);
 
         bool selected = vm.IsSelected;
         // 仅"允许流动的类型 + 有流向"时才走虚线动画；否则恒为实线
@@ -478,6 +532,9 @@ public class PipeControl : Control
                 _segmentDragMoved = true;
             }
 
+            // 按住 Alt 精细调整：本次拖动内跳过吸附（不改变宿主的 AlignmentSnapEnabled 配置）
+            segDiagram.SnapSuppressed = IsSnapSuppressed();
+
             // 水平段按 Y 平移（垂直移动），竖直段按 X 平移（水平移动）
             segDiagram.UpdateConnectionSegmentDrag(
                 _vm, _dragSegmentHorizontal, _dragSegmentHorizontal ? sp.Y : sp.X);
@@ -558,8 +615,13 @@ public class PipeControl : Control
             if (cancel) _diagram?.CancelConnectionSegmentDrag(conn);
             else _diagram?.EndConnectionSegmentDrag(conn);
         }
+        if (_diagram is { } d) d.SnapSuppressed = false;   // 复位"按住 Alt 临时关闭吸附"
         if (IsMouseCaptured) ReleaseMouseCapture();
     }
+
+    /// <summary>是否临时关闭对齐吸附：拖动中按住 Alt（精细调整）。</summary>
+    private static bool IsSnapSuppressed()
+        => (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
 
     /// <summary>是否靠近某一端点（半径 12 的平方比较，不开根号）。</summary>
     private bool EndpointNear(Point p, bool isStart)

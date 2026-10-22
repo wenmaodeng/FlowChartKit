@@ -130,6 +130,7 @@ public partial class DiagramCanvasControl : UserControl
         SizeChanged += OnControlSizeChanged;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         AddNodeCommand = new RelayCommand(AddNode);
+        AddTextItemCommand = new RelayCommand(AddTextItem);
         AddConnectionCommand = new RelayCommand(AddConnection);
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
         ClearLayoutCommand = new RelayCommand(_ => ClearLayout());
@@ -238,6 +239,9 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>在当前右键位置添加指定类型的部件（右键菜单）。</summary>
     public ICommand AddNodeCommand { get; }
 
+    /// <summary>在当前右键位置添加一个文本模块（右键菜单）。</summary>
+    public ICommand AddTextItemCommand { get; }
+
     /// <summary>在当前右键位置添加一条自由管路（右键菜单）。</summary>
     public ICommand AddConnectionCommand { get; }
 
@@ -278,6 +282,7 @@ public partial class DiagramCanvasControl : UserControl
             // 这里赋值会作为目标值变更推送到 VM 侧属性。
             SetValue(SetDirectionByNumberCommandProperty, new RelayCommand(ExecuteSetDirection));
             SetValue(SetNodeStateByNumberCommandProperty, new RelayCommand(ExecuteSetNodeState));
+            SetValue(SetTextByNumberCommandProperty, new RelayCommand(ExecuteSetText));
 
             _layoutLoaded = true;
             // Loaded 会随控件重新并入可视树而多次触发；布局只在首次载入，
@@ -413,6 +418,18 @@ public partial class DiagramCanvasControl : UserControl
         StatusChanged?.Invoke($"已添加部件：{node.Label}");
     }
 
+    /// <summary>在当前右键位置添加一个文本模块：内容与字号在属性窗口里编辑。</summary>
+    private void AddTextItem(object? parameter)
+    {
+        // 文本占位随内容变化，按常见短文本 60×20 估算钳位
+        var pos = new Point(
+            Math.Clamp(_menuPosition.X, 0, Math.Max(0, Diagram.CanvasWidth - 60)),
+            Math.Clamp(_menuPosition.Y, 0, Math.Max(0, Diagram.CanvasHeight - 20)));
+        var text = Diagram.AddTextItem(pos.X, pos.Y);
+        Diagram.SelectedTextBlock = text;
+        StatusChanged?.Invoke("已添加文本模块（右键 → 属性 编辑内容与字号）");
+    }
+
     /// <summary>放置坐标按部件占位（新建部件 Scale=1，取基准尺寸）钳位到画布内，避免新部件初始即越界。</summary>
     private Point ClampPlacement(NodeKind kind, Point pos)
     {
@@ -442,10 +459,10 @@ public partial class DiagramCanvasControl : UserControl
         StatusChanged?.Invoke($"已添加管路（{name}），拖动两端端点吸附到部件端口");
     }
 
-    /// <summary>弹出当前选中对象的属性窗口（管路优先于部件）。</summary>
+    /// <summary>弹出当前选中对象的属性窗口（管路优先于部件，再次为文本模块）。</summary>
     private void ShowProperties()
     {
-        object? target = Diagram.SelectedConnection ?? (object?)Diagram.SelectedNode;
+        object? target = Diagram.SelectedConnection ?? (object?)Diagram.SelectedTextBlock ?? Diagram.SelectedNode;
         if (target is null) return;
 
         PropertiesDialog.Show(Window.GetWindow(this), target);
@@ -522,10 +539,16 @@ public partial class DiagramCanvasControl : UserControl
         var diagram = Diagram;
         var hit = VisualTreeHelper.HitTest(this, e.GetPosition(this))?.VisualHit;
 
-        // 部件层在管路层之上，优先判定
+        // 部件层在管路层之上，优先判定；文本模块层介于两者之间
         if (FindVisualAncestor<FlowNodeControl>(hit)?.DataContext is NodeViewModel node)
         {
             diagram.SelectedNode = node;
+            return;
+        }
+
+        if (FindVisualAncestor<TextBlockItemControl>(hit)?.DataContext is TextBlockViewModel text)
+        {
+            diagram.SelectedTextBlock = text;
             return;
         }
 
@@ -537,6 +560,7 @@ public partial class DiagramCanvasControl : UserControl
 
         diagram.SelectedNode = null;
         diagram.SelectedConnection = null;
+        diagram.SelectedTextBlock = null;
     }
 
     /// <summary>菜单打开前按当前选中状态重建菜单项（构建逻辑见 <see cref="CanvasContextMenuBuilder"/>）；
@@ -585,5 +609,6 @@ public partial class DiagramCanvasControl : UserControl
         // 点击空白处清除选中
         diagram.SelectedNode = null;
         diagram.SelectedConnection = null;
+        diagram.SelectedTextBlock = null;
     }
 }

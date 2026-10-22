@@ -26,6 +26,11 @@ internal static class CanvasContextMenuBuilder
             menu.Items.Add(NewItem("属性", host.ShowPropertiesCommand, null));
             menu.Items.Add(NewItem("删除管路", diagram.DeleteSelectedCommand, null));
         }
+        else if (diagram.SelectedTextBlock is not null)
+        {
+            menu.Items.Add(NewItem("属性", host.ShowPropertiesCommand, null));
+            menu.Items.Add(NewItem("删除文本", diagram.DeleteSelectedCommand, null));
+        }
         else if (diagram.SelectedNode is not null)
         {
             menu.Items.Add(NewItem("属性", host.ShowPropertiesCommand, null));
@@ -44,11 +49,13 @@ internal static class CanvasContextMenuBuilder
             if (customGroup.Items.Count > 0)
                 addNode.Items.Add(customGroup);
             menu.Items.Add(addNode);
+            menu.Items.Add(NewItem("添加文本模块", host.AddTextItemCommand, null));
             menu.Items.Add(NewAddConnectionMenu(host));
         }
 
         menu.Items.Add(new Separator());
         menu.Items.Add(NewEditableItem(host));
+        menu.Items.Add(NewSnapItem(host));
         menu.Items.Add(NewItem("保存布局", host.SaveLayoutCommand, null));
         menu.Items.Add(NewItem("清空布局", host.ClearLayoutCommand, null));
     }
@@ -86,6 +93,22 @@ internal static class CanvasContextMenuBuilder
         // 走依赖属性而非直接改 Diagram，保证外部绑定与图模型始终一致
         var item = new MenuItem { Header = "编辑模式", IsCheckable = true, IsChecked = host.IsEditable };
         item.Click += (_, _) => host.IsEditable = item.IsChecked == true;
+        return item;
+    }
+
+    /// <summary>
+    /// "对齐吸附"开关：关闭后拖动部件/管路线段不再自动吸附，便于像素级精细调整；
+    /// 临时关闭可按住 Alt 拖动（只作用于当次拖动）。
+    /// </summary>
+    private static MenuItem NewSnapItem(DiagramCanvasControl host)
+    {
+        var item = new MenuItem
+        {
+            Header = "对齐吸附（拖动时按住 Alt 临时关闭）",
+            IsCheckable = true,
+            IsChecked = host.AlignmentSnapEnabled,
+        };
+        item.Click += (_, _) => host.AlignmentSnapEnabled = item.IsChecked == true;
         return item;
     }
 }

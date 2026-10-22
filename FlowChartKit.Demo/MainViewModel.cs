@@ -38,6 +38,14 @@ public class MainViewModel : ObservableBase
         set => Set(ref _setNodeStateByNumberCommand, value);
     }
 
+    private ICommand? _setTextByNumberCommand;
+    /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
+    public ICommand? SetTextByNumberCommand
+    {
+        get => _setTextByNumberCommand;
+        set => Set(ref _setTextByNumberCommand, value);
+    }
+
     /// <summary>ViewModel 直接在 XAML 里创建，无需代码后置注入。</summary>
     public MainViewModel()
     {
@@ -68,6 +76,9 @@ public class MainViewModel : ObservableBase
 
         // 设置 LED 状态：同一命令桥，第三个参数传 LedColorState 枚举（与 LedDefinition 的约定一致）
         ApplyLedStateCommand = new RelayCommand(_ => ExecuteSetLedState(), _ => LedNumber > 0);
+
+        // 按编号修改文本模块内容：与 SetDirectionByNumberCommand 同一套请求/回填模式
+        ApplyTextCommand = new RelayCommand(_ => ExecuteSetText(), _ => TextNumber > 0);
 
         // 管路样式测试：切换选中管路类型 / 生成四种管路对比示例 / 添加无名称部件
         ApplyPipeKindCommand = new RelayCommand(_ => ApplyPipeKind(), _ => Diagram is not null);
@@ -340,5 +351,40 @@ public class MainViewModel : ObservableBase
         StatusText = request.Result == true
             ? $"管路 #{Number} 已设为{FlowModeDefaults.DisplayName(Direction)}"
             : $"未找到编号为 {Number} 的管路";
+    }
+
+    private int _textNumber = 1;
+    /// <summary>要修改的文本模块编号。</summary>
+    public int TextNumber
+    {
+        get => _textNumber;
+        set => Set(ref _textNumber, value);
+    }
+
+    private string _textContent = "";
+    /// <summary>要写入的文本内容。</summary>
+    public string TextContent
+    {
+        get => _textContent;
+        set => Set(ref _textContent, value);
+    }
+
+    /// <summary>按编号修改文本模块内容（参数经 ApplyTextCommand 读取 UI 绑定值）。</summary>
+    public ICommand ApplyTextCommand { get; }
+
+    private void ExecuteSetText()
+    {
+        if (SetTextByNumberCommand is null)
+        {
+            StatusText = "画布命令未接线（检查 OneWayToSource 绑定）";
+            return;
+        }
+
+        var request = new SetTextRequest(TextNumber, TextContent);
+        SetTextByNumberCommand.Execute(request);
+
+        StatusText = request.Result == true
+            ? $"文本 #{TextNumber} 已更新"
+            : $"未找到编号为 {TextNumber} 的文本模块";
     }
 }

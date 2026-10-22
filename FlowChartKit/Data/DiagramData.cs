@@ -1,4 +1,5 @@
 using FlowChartKit;
+using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Data;
 
@@ -15,6 +16,25 @@ public sealed class DiagramData
     public double Height { get; set; } = 900;
     public List<NodeData> Nodes { get; set; } = [];
     public List<ConnectionData> Connections { get; set; } = [];
+
+    /// <summary>文本模块；旧存档无此字段时反序列化为空表（天然兼容，无需版本升级）。</summary>
+    public List<TextBlockData> Texts { get; set; } = [];
+}
+
+/// <summary>文本模块的持久化数据。</summary>
+public sealed class TextBlockData
+{
+    public string Id { get; set; } = "";
+
+    /// <summary>全图唯一编号；0 表示未编号（载入时回退为按集合顺序推导）。</summary>
+    public int Number { get; set; }
+
+    public double X { get; set; }
+    public double Y { get; set; }
+    public string Content { get; set; } = "";
+
+    /// <summary>字号（px）；缺省 14（与 TextBlockViewModel.DefaultFontSize 一致），旧存档无此字段时按该默认值回读。</summary>
+    public double FontSize { get; set; } = TextBlockViewModel.DefaultFontSize;
 }
 
 public sealed class NodeData
