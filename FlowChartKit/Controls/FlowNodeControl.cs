@@ -22,17 +22,33 @@ public class FlowNodeControl : Control
     // 序号徽章描边：复用 NodeRenderer 的冻结画刷与工厂（同程序集 internal 可见）
     private static readonly Pen NumberBadgePen = NodeRenderer.MakePen(NodeRenderer.Outline, 1.2);
 
+    // 右下角缩放手柄：配色与管路端点手柄一致（库内固定的交互元素配色）
+    // 右下角手柄对应的光标：拖右下角是 NW-SE 方向
+    private static readonly Cursor ResizeCursor = Cursors.SizeNWSE;
+
+    private static readonly Pen ResizeHandlePen = CreatePen(0x2F, 0x6F, 0xAF, 1.5);
+
+    /// <summary>缩放手柄边长（px）：固定尺寸，不随部件缩放变化。</summary>
+    private const double ResizeHandleSize = 8;
+
     /// <summary>标签文字相对图形底边的下移量：让开端口圆点与管路端点手柄。</summary>
     private const double LabelGap = 8;
 
-    /// <summary>图形下方留给标签的高度（含下移量与文字高度）。</summary>
-    private const double LabelBandHeight = 27;
+    /// <summary>图形下方留给标签的高度（含下移量与一行文字高度）：随字号变化，避免大字号被截断。</summary>
+    private static double LabelBandHeight(double fontSize) => LabelGap + fontSize * 1.7;
 
     private NodeViewModel? _vm;
     private DiagramViewModel? _diagram;
     private bool _dragging;
     private bool _dragMoved;
     private Point _dragStartCanvas;
+
+    // 缩放拖拽（拖部件右下角手柄）：与移动互斥
+    private bool _resizing;
+    private bool _resizeMoved;
+    private double _origScale;
+    // 鼠标是否悬停在部件上：决定手柄是否显示（未选中的部件悬停时也可直接抓手柄）
+    private bool _isMouseOver;
 
     // 单击退避：目录同时声明单击+双击的部件，单击挂起至双击判定窗口之外，双击时取消（防双击误触单击）
     private DispatcherTimer? _clickBackoffTimer;
@@ -52,6 +68,7 @@ public class FlowNodeControl : Control
     // 标签文本缓存：仅在 Label 或 DPI 变化时重建，避免每次 OnRender 构造 FormattedText
     private FormattedText? _labelText;
     private double _labelTextDpi = -1;
+    private double _labelTextSize = -1;
 
     // 序号文本缓存：仅在数值或 DPI 变化时重建
     private FormattedText? _numText;
@@ -98,14 +115,16 @@ public class FlowNodeControl : Control
         }
 
         _vm = e.NewValue as NodeViewModel;
+        // 容器复用：清掉上一个部件的悬停与缩放残留
+        _isMouseOver = false;
+        _resizing = false;
 
         if (_vm != null)
         {
             _vm.PropertyChanged += OnVmPropertyChanged;
             foreach (var port in _vm.Ports)
                 port.PropertyChanged += OnPortPropertyChanged;
-            Width = _vm.ShapeWidth;
-            Height = _vm.ShapeHeight + LabelBandHeight;
+            SyncSize();
         }
 
         InvalidateVisual();
@@ -136,14 +155,25 @@ public class FlowNodeControl : Control
             // 缩放后同步控件占位尺寸并重绘
             case nameof(NodeViewModel.ShapeWidth):
             case nameof(NodeViewModel.ShapeHeight):
-                if (_vm != null)
-                {
-                    Width = _vm.ShapeWidth;
-                    Height = _vm.ShapeHeight + LabelBandHeight;
-                }
+                SyncSize();
+                InvalidateVisual();
+                break;
+
+            // 字号变化：标签文本缓存失效，占位高度也要跟着变
+            case nameof(NodeViewModel.LabelFontSize):
+                _labelText = null;
+                SyncSize();
                 InvalidateVisual();
                 break;
         }
+    }
+
+    /// <summary>同步控件占位尺寸：宽高取缩放后的图形尺寸，下方留出标签带（随字号变化）。</summary>
+    private void SyncSize()
+    {
+        if (_vm is null) return;
+        Width = _vm.ShapeWidth;
+        Height = _vm.ShapeHeight + LabelBandHeight(_vm.LabelFontSize);
     }
 
     private void OnPortPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -212,20 +242,26 @@ public class FlowNodeControl : Control
             dc.DrawEllipse(Brushes.White, NumberBadgePen, badgeCenter, 8, 8);
             var numFt = GetNumberText(vm.KindNumber, dpi);
             dc.DrawText(numFt, new Point(badgeCenter.X - numFt.Width / 2, badgeCenter.Y - numFt.Height / 2));
+
+            // 右下角缩放手柄（选中或悬停时显示）：按住它拖动可等比缩放
+            if (ShowResizeHandle(vm))
+                dc.DrawRectangle(Brushes.White, ResizeHandlePen,
+                    ResizeHandleRect(vm.ShapeWidth, vm.ShapeHeight));
         }
 
-        // 标签（缓存 FormattedText，仅 Label/DPI 变化时重建）
-        if (_labelText is null || _labelTextDpi != dpi)
+        // 标签（缓存 FormattedText，仅 Label/字号/DPI 变化时重建）
+        if (_labelText is null || _labelTextDpi != dpi || _labelTextSize != vm.LabelFontSize)
         {
             _labelText = new FormattedText(
                 vm.Label ?? string.Empty,
                 CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
                 new Typeface("Arial"),
-                11.0,
+                vm.LabelFontSize,
                 LabelBrush,
                 dpi);
             _labelTextDpi = dpi;
+            _labelTextSize = vm.LabelFontSize;
         }
         double tx = (vm.ShapeWidth - _labelText.Width) / 2;
         dc.DrawText(_labelText, new Point(Math.Max(0, tx), vm.ShapeHeight + LabelGap));
@@ -250,12 +286,35 @@ public class FlowNodeControl : Control
         return _numText;
     }
 
+    /// <summary>
+    /// 缩放手柄是否可见（也决定是否可抓）：仅编辑模式，且部件已选中或鼠标悬停时显示，
+    /// 避免未选中部件上也堆满交互元素。
+    /// </summary>
+    private bool ShowResizeHandle(NodeViewModel vm)
+    {
+        if (Diagram is not { IsEditable: true }) return false;
+        return vm.IsSelected || _isMouseOver || _resizing;
+    }
+
+    /// <summary>手柄矩形（控件坐标）：固定在图形右下角，尺寸不随缩放变化。</summary>
+    private static Rect ResizeHandleRect(double shapeWidth, double shapeHeight)
+        => new(shapeWidth - ResizeHandleSize, shapeHeight - ResizeHandleSize,
+               ResizeHandleSize, ResizeHandleSize);
+
+    /// <summary>鼠标位置（控件坐标）是否落在缩放手柄上。</summary>
+    private static bool IsOnResizeHandle(NodeViewModel vm, Point p)
+        => ResizeHandleRect(vm.ShapeWidth, vm.ShapeHeight).Contains(p);
+
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)
     {
         var vm = _vm;
         if (vm is null) return null;
 
         var p = hitTestParameters.HitPoint;
+
+        // 缩放手柄优先命中：该处若正好压着管路端点，也不让位，保证手柄抓得住
+        if (ShowResizeHandle(vm) && IsOnResizeHandle(vm, p))
+            return new PointHitTestResult(this, p);
 
         // 只认部件图形本身：图形下方的标签带不归部件所有，
         // 否则底边端口附近的点击会被部件层吃掉（部件层在管路层之上）
@@ -343,6 +402,19 @@ public class FlowNodeControl : Control
         diagram.SelectedNode = _vm;
         Focus();
 
+        // 右下角手柄：按住拖动即等比缩放（与整体移动互斥）
+        if (ShowResizeHandle(_vm) && IsOnResizeHandle(_vm, e.GetPosition(this)))
+        {
+            _resizing = true;
+            _resizeMoved = false;
+            _origScale = _vm.Scale;
+            _dragStartCanvas = e.GetPosition(canvas);
+            CaptureMouse();
+            Cursor = ResizeCursor;
+            diagram.ClearAlignmentGuides();  // 缩放不参与对齐吸附
+            return;
+        }
+
         _dragStartCanvas = e.GetPosition(canvas);
         _origX = _vm.X;
         _origY = _vm.Y;
@@ -354,7 +426,45 @@ public class FlowNodeControl : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!_dragging || !IsMouseCaptured || _vm is null) return;
+
+        // 拖拽缩放（拖右下角手柄）
+        if (_resizing)
+        {
+            if (!IsMouseCaptured || _vm is null) return;
+
+            // 缩放中途切出编辑模式：立即终止，避免运行模式下继续改写图模型
+            if (Diagram is not { IsEditable: true } resizeDiagram)
+            {
+                FinishResize();
+                return;
+            }
+
+            var resizeCanvas = GetItemsCanvas();
+            if (resizeCanvas is null) return;
+
+            var rp = e.GetPosition(resizeCanvas);
+            if (!_resizeMoved)
+            {
+                if (Math.Abs(rp.X - _dragStartCanvas.X) < SystemParameters.MinimumHorizontalDragDistance
+                    && Math.Abs(rp.Y - _dragStartCanvas.Y) < SystemParameters.MinimumVerticalDragDistance)
+                    return;
+                _resizeMoved = true;
+            }
+
+            // 一次逻辑缩放只触发一次 GeometryChanged，相连管路每帧只重算一次
+            resizeDiagram.ResizeNodeTo(_vm, rp.X, rp.Y);
+            return;
+        }
+
+        if (!_dragging || !IsMouseCaptured || _vm is null)
+        {
+            // 悬停光标：手柄上提示对角缩放，其余位置恢复默认
+            if (_vm is not null)
+                Cursor = ShowResizeHandle(_vm) && IsOnResizeHandle(_vm, e.GetPosition(this))
+                    ? ResizeCursor
+                    : Cursors.Arrow;
+            return;
+        }
 
         // 拖拽中途切出编辑模式：立即终止本次拖拽，避免模式切换的中间态继续移动部件
         if (Diagram is not { IsEditable: true })
@@ -407,15 +517,59 @@ public class FlowNodeControl : Control
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_resizing)
+        {
+            FinishResize();
+            return;
+        }
         if (!_dragging) return;
         _dragging = false;
         ClearAlignmentGuides();
         Cursor = Cursors.Arrow;
     }
 
+    /// <summary>收尾缩放拖拽：提交当前缩放（Esc 回退走 <see cref="OnKeyDown"/>）。</summary>
+    private void FinishResize()
+    {
+        _resizing = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        Cursor = Cursors.Arrow;
+        InvalidateVisual();
+    }
+
+    /// <summary>Esc 取消缩放：回退到拖动前的缩放系数。</summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key != Key.Escape || !_resizing || _vm is null) return;
+
+        e.Handled = true;
+        _vm.Scale = _origScale;
+        FinishResize();
+    }
+
+    protected override void OnMouseEnter(MouseEventArgs e)
+    {
+        base.OnMouseEnter(e);
+        _isMouseOver = true;
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _isMouseOver = false;
+        InvalidateVisual();
+    }
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_resizing)
+        {
+            FinishResize();
+            return;
+        }
         if (_dragging)
         {
             _dragging = false;
@@ -542,6 +696,13 @@ public class FlowNodeControl : Control
         var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
         brush.Freeze();
         return brush;
+    }
+
+    private static Pen CreatePen(byte r, byte g, byte b, double thickness)
+    {
+        var pen = new Pen(CreateBrush(r, g, b), thickness);
+        pen.Freeze();
+        return pen;
     }
 
     private static Pen CreateSelectionPen()

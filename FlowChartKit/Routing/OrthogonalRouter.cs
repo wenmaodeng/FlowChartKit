@@ -10,7 +10,10 @@ namespace FlowChartKit.Routing;
 /// </summary>
 public static class OrthogonalRouter
 {
-    public static List<Point> Route(Point s, PortDir sDir, Point e, PortDir eDir, double stub = 16)
+    /// <summary>端口出线短直段（stub）的默认长度：两端各一段，供"可拖动区域"判定排除相同长度。</summary>
+    public const double DefaultStub = 16;
+
+    public static List<Point> Route(Point s, PortDir sDir, Point e, PortDir eDir, double stub = DefaultStub)
         => Route(s, sDir, e, eDir, null, null, stub);
 
     /// <summary>
@@ -18,7 +21,7 @@ public static class OrthogonalRouter
     /// <paramref name="detourY"/> 指定中间水平段的 Y（null 表示自动取位）。
     /// </summary>
     public static List<Point> Route(Point s, PortDir sDir, Point e, PortDir eDir,
-        double? detourX, double? detourY, double stub = 16)
+        double? detourX, double? detourY, double stub = DefaultStub)
     {
         var sv = sDir.Vec();
         var ev = eDir.Vec();

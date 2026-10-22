@@ -357,6 +357,60 @@ public class ConnectionViewModel : ObservableBase
     private double? _dragOrigDetourX;
     private double? _dragOrigDetourY;
 
+    /// <summary>
+    /// 判定画布坐标是否落在**可拖动**的线段上（仅正交布局）。可拖区域是整条路径
+    /// 除去两端端口出线短直段（各 <see cref="OrthogonalRouter.DefaultStub"/> 长）以外的部分：
+    /// Z 形的中间段可拖；L 形的两条边在让开端口出线后同样可拖（拖动后自动转为带绕行的 Z 形）。
+    /// 命中容差 8px；输出该处线段是否水平（水平段按 Y 拖动，竖直段按 X 拖动）。
+    /// </summary>
+    public bool TryHitDraggableSegment(Point canvasPoint, out bool horizontal)
+    {
+        horizontal = false;
+        if (_routing != PipeRouting.Orthogonal) return false;
+
+        var pts = Points;
+        if (pts.Length < 3) return false;   // 无折点的直线没有"中间段"可拖
+
+        double total = 0;
+        for (int i = 1; i < pts.Length; i++)
+            total += (pts[i] - pts[i - 1]).Length;
+
+        double guard = OrthogonalRouter.DefaultStub;
+        if (total <= guard * 2) return false;   // 整条线还不到两段端口出线长，没有可拖区域
+
+        const double tolerance = 8.0;
+        double bestDistSq = tolerance * tolerance;
+        double bestOffset = -1;
+        bool bestHorizontal = false;
+
+        // 沿路径累计弧长定位最近点：起点 / 终点各留出一段"端口出线"不可拖动
+        double acc = 0;
+        for (int i = 0; i < pts.Length - 1; i++)
+        {
+            var a = pts[i];
+            var w = pts[i + 1] - a;
+            double segLen = w.Length;
+            double t = segLen > 0.01
+                ? Math.Clamp(((canvasPoint - a) * w) / (segLen * segLen), 0, 1)
+                : 0;
+            var closest = a + w * t;
+            double distSq = (canvasPoint - closest).LengthSquared;
+            if (distSq <= bestDistSq)
+            {
+                bestDistSq = distSq;
+                bestOffset = acc + t * segLen;
+                bestHorizontal = Math.Abs(w.Y) <= Math.Abs(w.X);   // 段走向：水平段按 Y 拖
+            }
+            acc += segLen;
+        }
+
+        if (bestOffset < 0) return false;
+        if (bestOffset <= guard || bestOffset >= total - guard) return false;
+
+        horizontal = bestHorizontal;
+        return true;
+    }
+
     /// <summary>开始拖动中间线段：记录拖动前的绕行位置快照。</summary>
     internal void BeginSegmentDrag()
     {

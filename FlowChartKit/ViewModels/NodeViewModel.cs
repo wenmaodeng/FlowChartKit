@@ -13,11 +13,21 @@ public class NodeViewModel : ObservableBase
     /// <summary>缩放系数上限。</summary>
     public const double MaxScale = 5.0;
 
+    /// <summary>标签字号下限。</summary>
+    public const double MinLabelFontSize = 6;
+
+    /// <summary>标签字号上限。</summary>
+    public const double MaxLabelFontSize = 48;
+
+    /// <summary>标签字号默认值（与库内置字号一致）。</summary>
+    public const double DefaultLabelFontSize = 11;
+
     private double _x;
     private double _y;
     private string _label = "";
     private bool _isSelected;
     private double _scale = 1;
+    private double _labelFontSize = DefaultLabelFontSize;
 
     public NodeViewModel(NodeKind kind, string? label = null, double x = 0, double y = 0, string? id = null)
     {
@@ -57,6 +67,17 @@ public class NodeViewModel : ObservableBase
 
     public double ShapeWidth => BaseWidth * _scale;
     public double ShapeHeight => BaseHeight * _scale;
+
+    /// <summary>
+    /// 部件名称的字号（px）：只影响标签文字大小，**不随部件缩放变化**，
+    /// 改动会即时刷新画布显示并随存档持久化（钳制在
+    /// <see cref="MinLabelFontSize"/> ~ <see cref="MaxLabelFontSize"/> 之间）。
+    /// </summary>
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set => Set(ref _labelFontSize, Math.Clamp(value, MinLabelFontSize, MaxLabelFontSize));
+    }
 
     /// <summary>部件名称；可在属性窗口修改，改动会即时刷新画布显示。</summary>
     public string Label

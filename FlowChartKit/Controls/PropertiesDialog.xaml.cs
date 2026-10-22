@@ -52,6 +52,7 @@ public partial class PropertiesDialog : Window
         AddNumber("位置 X", () => node.X, v => node.X = v);
         AddNumber("位置 Y", () => node.Y, v => node.Y = v);
         AddNumber("缩放", () => node.Scale, v => node.Scale = v);
+        AddNumber("标签字号", () => node.LabelFontSize, v => node.LabelFontSize = v);
         AddSize(node);
         AddReadOnly("端口", string.Join("、", node.Ports.Select(p => $"{p.Id}({p.Dir})")));
         AddState(node);

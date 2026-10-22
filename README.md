@@ -11,7 +11,8 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 - **宿主扩展**：业务部件类型由宿主常量定义（数值落盘），实现一个 `INodeDefinition` + 一次注册即可入画布与右键菜单（见下文三通阀示例）
 - **自适应画布**：`AutoFitCanvas` 默认开启，画布尺寸自动跟随控件可视区，无水平/垂直滚动条；关闭则按存档尺寸显示并可滚动
 - **管路系统**：端口吸附、自由端、流向与流动画；连线布局可选「垂直水平（正交，可拖动中间线段调整绕行）/ 直线 / 弧线」（`PipeRouting`），与管路样式独立组合
-- **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附并显示橙色捕捉线
+- **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附；拖动管路线段时与**其它管路**的水平 / 竖直段共线对齐，均显示橙色捕捉线
+- **部件缩放与标签字号**：选中（或悬停）部件后，按住**右下角**手柄拖动即等比缩放（`NodeViewModel.Scale`，0.2~5 倍）；部件名称字号可逐件设置（`LabelFontSize`，6~48，随存档持久化）
 - **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
 - **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` 按编号下发，`NodeClickCommand` 上抛
@@ -171,6 +172,21 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 - 用自定义定义覆盖 `PipeKind.Standard` 即可**全局改默认管路外观**（一行注册改掉所有普通管路的颜色/粗细/动画）。
 - `Unregister(kind)` 后回退内置定义；载入存档时若宿主未注册该类型，自动回退为 `Standard`（不会解析失败）。
 
+## 部件缩放与标签字号
+
+编辑模式下**选中或悬停**部件时，图形**右下角**显示一个 8px 的缩放手柄；按住它拖动即**等比**缩放，锚点为左上角（X / Y 不变），拖动中按 **Esc** 回退到拖动前的缩放系数。
+
+| 场景 | 做法 |
+|---|---|
+| 拖动手柄缩放 | 选中部件 → 拖右下角方块（光标为 `SizeNWSE`） |
+| 代码缩放 | `diagram.ResizeNodeTo(node, canvasX, canvasY)`：按画布坐标等比缩放，自动钳到画布右下边界内 |
+| 精确设置 | 选中部件 → 属性 →「缩放」（0.2 ~ 5 倍） |
+| 标签字号 | 属性 →「标签字号」（6 ~ 48px，默认 11） |
+| 关闭缩放入口 | 设 `IsEditable="False"`（运行模式不显示手柄，也不响应拖动） |
+
+- `Scale` 与 `LabelFontSize` 都随存档持久化（`NodeData.Scale / LabelFontSize`）；字号**不随部件缩放变化**，部件下方的标签带高度会自动跟随字号调整，大字号不会被截断。
+- 手柄所在的 8px 区域**优先于管路端点**响应，保证手柄抓得住。
+
 ## 连线布局
 
 每条管路的走线方式与管路样式（`PipeKind`）**独立组合**：既是"蒸汽管"也可以走弧线。
@@ -188,11 +204,11 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 | 代码创建 | `diagram.AddFreeConnection(start, end, routing: PipeRouting.Curved)` |
 | 复位手动绕行 | 选中管路 → 属性 →「复位为自动走线」，或 `conn.SetDetour(null, null)` |
 
-**垂直水平布局支持拖动中间线段**：水平段随鼠标上下移动、竖直段随鼠标左右移动（拖动中按 Esc 回退），路径始终保持横平竖直，绕行位置随存档持久化（`ConnectionData.DetourX / DetourY`）。旧存档无 `Routing` 字段按 `Orthogonal` 回读。
+**垂直水平布局支持拖动线段**：路径上除两端端口出线短直段（各 16px）以外的部分都可拖动——Z 形的中间段、以及 **L 形的两条边**（拖动后自动转为带绕行的 Z 形）。水平段随鼠标上下移动、竖直段随鼠标左右移动（拖动中按 Esc 回退），路径始终保持横平竖直，绕行位置随存档持久化（`ConnectionData.DetourX / DetourY`），属性里「复位为自动走线」可恢复原路径。旧存档无 `Routing` 字段按 `Orthogonal` 回读。
 
 ## 拖动对齐吸附
 
-拖动部件靠近其它部件的**左 / 居中 / 右、上 / 居中 / 下**时自动吸附对齐，并显示橙色虚线捕捉线（覆盖两个部件的并集范围）：
+**部件**：拖动部件靠近其它部件的**左 / 居中 / 右、上 / 居中 / 下**时自动吸附对齐，并显示橙色虚线捕捉线（覆盖两个部件的并集范围）：
 
 ```xml
 <fc:DiagramCanvasControl AlignmentSnapEnabled="True"
@@ -204,7 +220,9 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 | `AlignmentSnapEnabled` | 默认 `true`；设为 `false` 恢复自由拖动，不再生成捕捉线 |
 | `AlignmentSnapDistance` | 默认 `6`px，进入该距离即吸附 |
 
-代码侧：`DiagramViewModel.SnapNode(node, x, y)` 返回吸附后坐标与参考线集合（`AlignmentGuide`），当前参考线见 `DiagramViewModel.AlignmentGuides`，由画布的对齐线图层绘制（不参与命中测试）；拖动结束或退出编辑模式会自动清空。
+**管路**：拖动正交管路的线段时，与**其它管路的水平 / 竖直段**共线对齐（不考虑部件）——水平段按 Y 吸附、竖直段按 X 吸附，被拖管路自身不参与。命中时显示对应的捕捉线（水平段横线、竖直段竖线，跨度覆盖两条管路的并集范围）。
+
+代码侧：`DiagramViewModel.SnapNode(node, x, y)`（部件）与 `SnapConnectionSegment(conn, horizontal, pos)`（管路段）返回吸附后坐标与参考线集合（`AlignmentGuide`），当前参考线见 `DiagramViewModel.AlignmentGuides`，由画布的对齐线图层绘制（不参与命中测试）；拖动结束或退出编辑模式会自动清空。
 
 ## 文档
 

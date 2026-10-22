@@ -31,6 +31,10 @@ jobs:
             Write-Error "tag v$tag 与 csproj Version $version 不一致：更新 FlowChartKit/FlowChartKit.csproj 的 <Version> 后重新打 tag"
           }
 
+      # 打包前跑一遍单测：避免把回归发上线（图模型/路由/序列化逻辑均有覆盖）
+      - name: Test
+        run: dotnet test FlowChartKit.Tests/FlowChartKit.Tests.csproj -c Release
+
       - name: Pack
         run: dotnet pack FlowChartKit/FlowChartKit.csproj -c Release -o artifacts
 

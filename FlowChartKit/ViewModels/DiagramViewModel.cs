@@ -255,6 +255,30 @@ public class DiagramViewModel : ObservableBase
     /// <summary>参考线在两端各延伸的长度（px），使线略微超出部件边缘便于观察。</summary>
     private const double GuidePad = 10;
 
+    /// <summary>管路所有折点在 X 方向的范围（捕捉线跨度用）。</summary>
+    private static (double Min, double Max) SpanX(ConnectionViewModel conn)
+    {
+        double min = double.MaxValue, max = double.MinValue;
+        foreach (var p in conn.Points)
+        {
+            if (p.X < min) min = p.X;
+            if (p.X > max) max = p.X;
+        }
+        return min > max ? (0, 0) : (min, max);
+    }
+
+    /// <summary>管路所有折点在 Y 方向的范围（捕捉线跨度用）。</summary>
+    private static (double Min, double Max) SpanY(ConnectionViewModel conn)
+    {
+        double min = double.MaxValue, max = double.MinValue;
+        foreach (var p in conn.Points)
+        {
+            if (p.Y < min) min = p.Y;
+            if (p.Y > max) max = p.Y;
+        }
+        return min > max ? (0, 0) : (min, max);
+    }
+
     /// <summary>
     /// 在"起点/中线/终点"三类对齐中找最近的候选：被拖部件位置 p（尺寸 s）对齐到参考部件位置 o（尺寸 os）。
     /// 找到更近的候选即更新偏差、吸附坐标与参考线。
@@ -550,20 +574,114 @@ public class DiagramViewModel : ObservableBase
     // ---- 正交管路：拖动中间线段（水平段上下移 / 竖直段左右移） ----
 
     /// <summary>开始拖动管路中间线段：记录拖动前的绕行位置，供 Esc 回退。</summary>
-    public void BeginConnectionSegmentDrag(ConnectionViewModel conn) => conn.BeginSegmentDrag();
+    public void BeginConnectionSegmentDrag(ConnectionViewModel conn)
+    {
+        ClearAlignmentGuides();
+        conn.BeginSegmentDrag();
+    }
 
     /// <summary>
     /// 拖动中间线段到指定坐标：<paramref name="horizontal"/> 为 true 表示水平段（按 Y 移动），
-    /// 否则为竖直段（按 X 移动）。仅正交布局生效。
+    /// 否则为竖直段（按 X 移动）。坐标先经对齐吸附（见 <see cref="SnapConnectionSegment"/>）再下发，
+    /// 并同步刷新捕捉线；仅正交布局生效。
     /// </summary>
     public void UpdateConnectionSegmentDrag(ConnectionViewModel conn, bool horizontal, double pos)
-        => conn.UpdateSegmentDrag(horizontal, pos);
+    {
+        var snap = SnapConnectionSegment(conn, horizontal, pos);
+        SetAlignmentGuides(snap.Guides);
+        conn.UpdateSegmentDrag(horizontal, snap.Pos);
+    }
 
-    /// <summary>结束段拖拽：提交当前绕行位置。</summary>
-    public void EndConnectionSegmentDrag(ConnectionViewModel conn) => conn.EndSegmentDrag();
+    /// <summary>结束段拖拽：提交当前绕行位置并清除捕捉线。</summary>
+    public void EndConnectionSegmentDrag(ConnectionViewModel conn)
+    {
+        ClearAlignmentGuides();
+        conn.EndSegmentDrag();
+    }
 
-    /// <summary>取消段拖拽（Esc）：绕行位置回退到拖动前。</summary>
-    public void CancelConnectionSegmentDrag(ConnectionViewModel conn) => conn.CancelSegmentDrag();
+    /// <summary>取消段拖拽（Esc）：绕行位置回退到拖动前并清除捕捉线。</summary>
+    public void CancelConnectionSegmentDrag(ConnectionViewModel conn)
+    {
+        ClearAlignmentGuides();
+        conn.CancelSegmentDrag();
+    }
+
+    /// <summary>
+    /// 拖动正交管路线段时的**对齐吸附**：与**其它管路**的水平 / 竖直段共线对齐（不考虑部件）——
+    /// <paramref name="horizontal"/> 为 true 表示拖水平段，按 Y 吸附到其它管路的水平段；
+    /// 否则为拖竖直段，按 X 吸附到其它管路的竖直段（被拖管路自身不参与）。
+    /// 取最近的一个候选（阈值内）并生成对应捕捉线；未启用或无候选时原样返回。
+    /// 开关与阈值沿用部件吸附的 <see cref="AlignmentSnapEnabled"/> / <see cref="AlignmentSnapDistance"/>。
+    /// </summary>
+    public SegmentSnapResult SnapConnectionSegment(ConnectionViewModel conn, bool horizontal, double pos)
+    {
+        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0)
+            return new SegmentSnapResult(pos, Array.Empty<AlignmentGuide>());
+
+        double best = _alignmentSnapDistance;
+        double snapped = pos;
+        double guideMin = 0, guideMax = 0;
+        bool found = false;
+
+        foreach (var other in Connections)
+        {
+            if (ReferenceEquals(other, conn)) continue;
+            var pts = other.Points;
+            for (int i = 1; i < pts.Length; i++)
+            {
+                var a = pts[i - 1];
+                var b = pts[i];
+
+                // 只与同走向的段对齐：水平段对 Y，竖直段对 X
+                bool segHorizontal = Math.Abs(a.Y - b.Y) < 0.01;
+                if (segHorizontal != horizontal) continue;
+
+                double delta = Math.Abs((horizontal ? a.Y : a.X) - pos);
+                if (delta > best) continue;
+                best = delta;
+                snapped = horizontal ? a.Y : a.X;
+                found = true;
+
+                // 捕捉线跨度：被拖管路与参考段的并集范围，便于观察
+                var (spanMin, spanMax) = horizontal ? SpanX(conn) : SpanY(conn);
+                double objMin = horizontal ? Math.Min(a.X, b.X) : Math.Min(a.Y, b.Y);
+                double objMax = horizontal ? Math.Max(a.X, b.X) : Math.Max(a.Y, b.Y);
+                guideMin = Math.Min(spanMin, objMin) - GuidePad;
+                guideMax = Math.Max(spanMax, objMax) + GuidePad;
+            }
+        }
+
+        if (!found) return new SegmentSnapResult(pos, Array.Empty<AlignmentGuide>());
+
+        // 水平段生成横线（Y 对齐），竖直段生成竖线（X 对齐）
+        var guide = new AlignmentGuide(!horizontal, snapped, guideMin, guideMax);
+        return new SegmentSnapResult(snapped, new[] { guide });
+    }
+
+    /// <summary>
+    /// 按鼠标位置（画布坐标）**等比**缩放部件，供编辑模式下拖动部件右下角的手柄使用：
+    /// 以部件左上角为锚点（X / Y 不变），取宽、高两维中较大的比例，使缩放后的部件至少覆盖到鼠标位置；
+    /// 再钳到画布右下边界内（最终仍受 <see cref="NodeViewModel.MinScale"/> / <see cref="NodeViewModel.MaxScale"/> 约束）。
+    /// </summary>
+    public void ResizeNodeTo(NodeViewModel node, double canvasX, double canvasY)
+    {
+        // 两维各自需要的比例，取较大者（跟随鼠标较远的一维，手感与"拖角"一致）
+        double byWidth = ScaleFor(node.BaseWidth, canvasX - node.X);
+        double byHeight = ScaleFor(node.BaseHeight, canvasY - node.Y);
+
+        node.Scale = Math.Min(Math.Max(byWidth, byHeight), MaxScaleFittingCanvas(node));
+    }
+
+    private static double ScaleFor(double baseSize, double size)
+        => baseSize > 0 ? size / baseSize : 1;
+
+    /// <summary>部件左上角固定时，不越出画布右下边界所能达到的最大缩放系数（至少保留最小缩放）。</summary>
+    private double MaxScaleFittingCanvas(NodeViewModel node)
+    {
+        double byWidth = node.BaseWidth > 0 ? (CanvasWidth - node.X) / node.BaseWidth : NodeViewModel.MaxScale;
+        double byHeight = node.BaseHeight > 0 ? (CanvasHeight - node.Y) / node.BaseHeight : NodeViewModel.MaxScale;
+        return Math.Max(NodeViewModel.MinScale, Math.Min(byWidth, byHeight));
+    }
 
     // ---- 序列化 ----
 
@@ -581,6 +699,7 @@ public class DiagramViewModel : ObservableBase
                 X = n.X,
                 Y = n.Y,
                 Scale = n.Scale,
+                LabelFontSize = n.LabelFontSize,
                 Number = n.KindNumber
             });
         }
@@ -652,6 +771,8 @@ public class DiagramViewModel : ObservableBase
             {
                 var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
                 node.Scale = nd.Scale > 0 ? nd.Scale : 1;
+                // 旧存档无字号字段时为 0，回退默认值（属性自身还会再钳一次上下限）
+                if (nd.LabelFontSize > 0) node.LabelFontSize = nd.LabelFontSize;
                 map[nd.Id] = node;
             }
         }

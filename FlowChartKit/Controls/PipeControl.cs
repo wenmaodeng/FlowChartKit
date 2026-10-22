@@ -445,33 +445,12 @@ public class PipeControl : Control
     }
 
     /// <summary>
-    /// 命中"中间线段"：首段与末段是端口出线段（端点固定），不可拖动；
-    /// 命中容差 ±8px，输出该段是否水平（水平段按 Y 平移，竖直段按 X 平移）。
+    /// 命中"可拖动线段"：整条路径除去两端端口出线短直段以外的部分（Z 形的中间段、L 形让开端口后的两条边）。
+    /// 判定由图模型负责（<see cref="ConnectionViewModel.TryHitDraggableSegment"/>），
+    /// 输出该处线段是否水平（水平段按 Y 平移，竖直段按 X 平移）。
     /// </summary>
     private static bool TryHitMiddleSegment(ConnectionViewModel vm, Point p, out bool horizontal)
-    {
-        horizontal = false;
-        var pts = vm.Points;
-        // 首末段各占一段，至少 4 点才可能存在中间段
-        if (pts.Length < 4) return false;
-
-        const double thresholdSquared = 8.0 * 8.0;
-        double best = double.MaxValue;
-        int bestIndex = -1;
-        for (int i = 1; i < pts.Length - 2; i++)
-        {
-            double d = DistanceToSegmentSquared(p, pts[i], pts[i + 1]);
-            if (d <= thresholdSquared && d < best)
-            {
-                best = d;
-                bestIndex = i;
-            }
-        }
-
-        if (bestIndex < 0) return false;
-        horizontal = Math.Abs(pts[bestIndex].Y - pts[bestIndex + 1].Y) < 0.01;
-        return true;
-    }
+        => vm.TryHitDraggableSegment(p, out horizontal);
 
     protected override void OnMouseMove(MouseEventArgs e)
     {

@@ -26,6 +26,9 @@ public sealed class NodeData
     public string Label { get; set; } = "";
     public double Scale { get; set; } = 1;
 
+    /// <summary>标签字号（px）；缺省 11（与 NodeViewModel.DefaultLabelFontSize 一致），旧存档无此字段时按该默认值回读。</summary>
+    public double LabelFontSize { get; set; } = 11;
+
     /// <summary>同类部件序号：保存布局时按当前值写入；0 表示未编号（载入时回退为按集合顺序推导，兼容旧存档）。</summary>
     public int Number { get; set; }
 }

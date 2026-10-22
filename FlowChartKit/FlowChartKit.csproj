@@ -9,7 +9,7 @@
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
 
     <!-- 库身份与版本：宿主升级依据（SemVer），API 变更时递增并同步 CHANGELOG -->
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <PackageId>FlowChartKit</PackageId>
     <Authors>wenmaodeng</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -17,7 +17,7 @@
     <PackageProjectUrl>https://github.com/wenmaodeng/FlowChartKit</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Description>WPF 流程图控件库：部件定义注册表（内置 LED/开关 + 宿主扩展）、管路连线布局可选（垂直水平/直线/弧线，正交可拖中间线段）、管路样式可扩展、拖动对齐吸附、流向动画、布局 JSON 存档（带版本字段）、编辑/运行双模式。</Description>
+    <Description>WPF 流程图控件库：部件定义注册表（内置 LED/开关 + 宿主扩展）、部件等比缩放（右下角手柄）与标签字号可设置、管路连线布局可选（垂直水平/直线/弧线，可拖动线段调整绕行）、拖动对齐吸附（部件与管路）、管路样式可扩展、流向动画、布局 JSON 存档（带版本字段）、编辑/运行双模式。</Description>
     <PackageTags>WPF;FlowChart;Diagram;Canvas;MVVM</PackageTags>
 
     <!-- XML 文档随包分发：公共 API 的注释是宿主接入契约的一部分 -->

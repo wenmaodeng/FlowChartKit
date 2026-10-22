@@ -1,5 +1,42 @@
 # FlowChartKit 发布说明
 
+## 1.5.0（2026-10-22）
+
+部件缩放与标签字号、正交管路拖动与对齐吸附的编辑体验增强。
+
+### 新增：按住部件右下角拖动缩放
+
+- 编辑模式下选中（或悬停）部件时，图形**右下角**显示缩放手柄；按住它拖动即**等比**缩放（以左上角为锚点，X / Y 不变）。
+- 缩放系数仍为 `NodeViewModel.Scale`（0.2 ~ 5 倍，随存档持久化）；拖动中受画布右下边界约束，不会把部件拖出画布。
+- **API**：`DiagramViewModel.ResizeNodeTo(node, canvasX, canvasY)` 按画布坐标等比缩放（取宽、高比例较大者，并钳到画布与缩放上下限内）。
+- 拖动中按 **Esc** 回退到拖动前的缩放系数；缩放不参与对齐吸附。
+
+### 新增：部件标签字号可设置
+
+- `NodeViewModel.LabelFontSize`：部件名称的字号（px，**不随部件缩放变化**，默认 11，钳制在 `MinLabelFontSize` 6 ~ `MaxLabelFontSize` 48）。
+- 属性对话框新增「标签字号」；随存档持久化（`NodeData.LabelFontSize`），旧存档无该字段按 11 回读。
+- 部件下方标签带高度随字号自动调整，大字号不会被截断。
+
+### 新增：拖动管路线段的对齐捕捉
+
+- 拖动正交管路的线段时，与**其它管路的水平 / 竖直段**共线对齐（不考虑部件）：**水平段**按 Y 吸附到其它管路的水平段，**竖直段**按 X 吸附到竖直段；被拖管路自身不参与。
+- 命中阈值内取最近的一个候选，并显示对应的捕捉线（水平段横线、竖直段竖线，跨度覆盖两条管路的并集范围）。
+- 沿用部件吸附的同一套开关与阈值：`AlignmentSnapEnabled` / `AlignmentSnapDistance`；拖动结束、Esc 取消、退出编辑模式都会清除捕捉线。
+- **API**：`DiagramViewModel.SnapConnectionSegment(conn, horizontal, pos)` 返回 `SegmentSnapResult`（吸附后坐标 + 捕捉线）；`UpdateConnectionSegmentDrag` 内部先吸附再下发。
+
+### 变更：正交管路的可拖动区域扩展到 L 形
+
+- 原先只有 Z 形（4 点以上）的中间段可拖动；现在按**整条路径的弧长**判定：除去两端端口出线短直段（各 `OrthogonalRouter.DefaultStub` = 16px）以外的部分都可拖动。
+- 因此 **L 形管路**（单折点）的两条边在让开端口出线后也能拖动，拖动后自动转为带绕行的 Z 形；拖动结束前按 Esc 回退，属性对话框「复位为自动走线」或 `SetDetour(null, null)` 可恢复原 L 形。
+- **API**：`ConnectionViewModel.TryHitDraggableSegment(canvasPoint, out horizontal)` 供控件判定命中与拖动方向（水平段按 Y 移动、竖直段按 X 移动）。
+
+### 兼容性说明
+
+- **存档兼容**：新增字段均为缺省值（`NodeData.LabelFontSize` 缺省 11、`Scale` 缺省 1、`ConnectionData.Routing` 缺省 `Orthogonal`），1.4.0 及更早的存档可直接载入，无需迁移。
+- **部件右下角新增缩放手柄**：仅在编辑模式且部件「已选中 / 悬停」时出现；该 8px 区域**优先于管路端点**响应，若自定义部件的端口落在右下角附近，该端口将无法直接拖动（改为先取消选中该部件即可）。
+- **拖动吸附仍是同一套开关**：管路吸附沿用 `AlignmentSnapEnabled` / `AlignmentSnapDistance`，不需要吸附的工程设 `AlignmentSnapEnabled="False"` 即可整体关闭（部件与管路同时生效）。
+- **正交路径的可拖区域扩大**：原只能拖 Z 形的中间段，现 L 形两条边也让开端口后可拖；不拖动时路径计算结果与旧版一致。
+
 ## 1.4.0（2026-10-22）
 
 部件与管路的编辑体验增强：拖动部件时的对齐吸附捕捉线，管路连线布局可选（垂直水平 / 直线 / 弧线）。

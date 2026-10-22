@@ -19,3 +19,11 @@ public readonly record struct NodeSnapResult(
     double X,
     double Y,
     IReadOnlyList<AlignmentGuide> Guides);
+
+/// <summary>
+/// 管路线段拖动吸附结果：<see cref="Pos"/> 为吸附后的坐标（水平段为 Y，竖直段为 X），
+/// <see cref="Guides"/> 为本次需要显示的对齐参考线（无对齐时为空）。
+/// </summary>
+public readonly record struct SegmentSnapResult(
+    double Pos,
+    IReadOnlyList<AlignmentGuide> Guides);
