@@ -9,4 +9,5 @@ namespace FlowChartKit.Demo.Pipes;
 public static class HostPipeKinds
 {
     public const PipeKind FlowPath = (PipeKind)1003; // 流路：2px #3161FF 蓝线
+    public const PipeKind HotSteam = (PipeKind)1004; // 热水汽管：2px #25F7D9 青绿线
 }

@@ -16,5 +16,6 @@ public static class HostPipeCatalog
         _registered = true;
 
         PipeDefinitionRegistry.Register(new FlowPathPipeDefinition());
+        PipeDefinitionRegistry.Register(new HotSteamPipeDefinition());
     }
 }
