@@ -43,4 +43,7 @@ public sealed class ConnectionData
     public double? TargetFreeX { get; set; }
     public double? TargetFreeY { get; set; }
     public FlowMode Direction { get; set; } = FlowMode.None;
+
+    /// <summary>管路类型（决定颜色/粗细/流动画）；缺省为内置普通管路，旧存档无此字段时按该默认值回读。</summary>
+    public PipeKind PipeKind { get; set; } = PipeKind.Standard;
 }

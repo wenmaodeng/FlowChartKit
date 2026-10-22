@@ -72,6 +72,10 @@ public partial class DiagramCanvasControl : UserControl
         nameof(AutoFitCanvas), typeof(bool), typeof(DiagramCanvasControl),
         new PropertyMetadata(true, OnAutoFitCanvasChanged));
 
+    public static readonly DependencyProperty DefaultPipeKindProperty = DependencyProperty.Register(
+        nameof(DefaultPipeKind), typeof(PipeKind), typeof(DiagramCanvasControl),
+        new PropertyMetadata(PipeKind.Standard));
+
     private bool _layoutLoaded;
     private bool _initialLoadDone;
     /// <summary>自适应收敛执行中标记：Resize 引发的 CanvasWidth/Height 通知会再次触发收敛，防重入。</summary>
@@ -118,7 +122,7 @@ public partial class DiagramCanvasControl : UserControl
         SizeChanged += OnControlSizeChanged;
         SaveLayoutCommand = new RelayCommand(_ => SaveLayout());
         AddNodeCommand = new RelayCommand(AddNode);
-        AddConnectionCommand = new RelayCommand(_ => AddConnection());
+        AddConnectionCommand = new RelayCommand(AddConnection);
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
         ClearLayoutCommand = new RelayCommand(_ => ClearLayout());
         InitializeComponent();
@@ -151,6 +155,17 @@ public partial class DiagramCanvasControl : UserControl
     {
         get => (bool)GetValue(AutoFitCanvasProperty);
         set => SetValue(AutoFitCanvasProperty, value);
+    }
+
+    /// <summary>
+    /// 新建管路默认使用的管路类型（默认 <see cref="PipeKind.Standard"/> 内置普通管路）。
+    /// 设为宿主自定义的管路类型常量后，右键菜单"添加管路（默认）"与不带参数的添加操作都用它；
+    /// 单条管路的类型可随时在属性对话框中切换。
+    /// </summary>
+    public PipeKind DefaultPipeKind
+    {
+        get => (PipeKind)GetValue(DefaultPipeKindProperty);
+        set => SetValue(DefaultPipeKindProperty, value);
     }
 
     /// <summary>布局序列化文件路径；未指定（null 或空白）时使用 <see cref="DiagramSerializer.DefaultFilePath"/>。</summary>
@@ -351,14 +366,24 @@ public partial class DiagramCanvasControl : UserControl
             Math.Clamp(pos.Y, 0, Math.Max(0, Diagram.CanvasHeight - h)));
     }
 
-    private void AddConnection()
+    /// <summary>
+    /// 添加管路：命令参数为 <see cref="PipeKind"/> 时按该类型创建，否则用 <see cref="DefaultPipeKind"/>。
+    /// 右键菜单的"添加管路"子菜单按注册表列出可选管路类型。
+    /// </summary>
+    private void AddConnection(object? parameter)
     {
+        var kind = parameter is PipeKind k ? k : DefaultPipeKind;
+        // 宿主未注册该类型时回退内置普通管路，避免创建后无法解析外观
+        if (!PipeDefinitionRegistry.IsAvailable(kind)) kind = PipeKind.Standard;
+
         var start = _menuPosition;
         // 自由端初始坐标同样钳位到画布内，避免落在画布外无法拾取
         var end = new Point(Math.Min(start.X + 120, Diagram.CanvasWidth), start.Y);
-        var conn = Diagram.AddFreeConnection(start, end);
+        var conn = Diagram.AddFreeConnection(start, end, pipeKind: kind);
         Diagram.SelectedConnection = conn;
-        StatusChanged?.Invoke("已添加管路，拖动两端端点吸附到部件端口");
+
+        var name = PipeDefinitionRegistry.Resolve(kind).DisplayName;
+        StatusChanged?.Invoke($"已添加管路（{name}），拖动两端端点吸附到部件端口");
     }
 
     /// <summary>弹出当前选中对象的属性窗口（管路优先于部件）。</summary>

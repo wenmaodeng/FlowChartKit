@@ -1,5 +1,46 @@
 # FlowChartKit 发布说明
 
+## 1.3.0（2026-10-22）
+
+管路的颜色、粗细与流动画改为**外部可扩展**，管路同部件一样分为内置与外置（宿主注册）两类；同时允许部件名称为空。
+
+### 新增：管路样式可扩展
+
+- **`PipeKind` 枚举**：内置 `Standard`（普通管路），宿主以常量扩展（如 `(PipeKind)1000`）。
+- **`IPipeDefinition`**：一种管路的颜色/粗细/流动画集中在一个类里自管理。
+  ```csharp
+  public sealed class SteamPipeDefinition : IPipeDefinition
+  {
+      public PipeKind Kind => HostPipeKinds.Steam;
+      public string DisplayName => "蒸汽管";
+      public Brush Stroke { get; } = NodeRenderer.Frozen(0xD0, 0x3A, 0x2B);
+      public double Thickness => 3.5;
+      public Brush SelectedStroke { get; } = NodeRenderer.Frozen(0xFF, 0x8A, 0x00);
+      public double SelectedThickness => 4.0;
+      public PipeFlowSpec Flow { get; } = PipeFlowSpec.Create([6, 3], TimeSpan.FromSeconds(0.3));
+  }
+  ```
+- **`PipeFlowSpec`**：流动画规格——虚线图案 `Dash`、一个循环时长 `Duration`、是否流动 `Enabled`；`PipeFlowSpec.None` 表示恒实线。
+- **`PipeDefinitionRegistry`**：与部件注册表同构（内置只读层 + 宿主覆盖层），支持 `Register` / `Unregister` / `Resolve` / `IsAvailable` / `IsBuiltIn` / `All`。
+- **`ConnectionViewModel.PipeKind`**：逐条管路的类型，变更即时重绘并重启动画。
+- **`DiagramCanvasControl.DefaultPipeKind`**（依赖属性，默认 `PipeKind.Standard`）：新建管路使用的类型。
+- **API**：`AddConnection(...)` / `AddFreeConnection(...)` 新增可选 `pipeKind` 参数。
+- **UI 入口**：
+  - 右键菜单「添加管路」改为子菜单：默认项 +「内置管路」/「扩展管路」分组。
+  - 管路属性对话框新增「管路类型」下拉，可随时切换单条管路的类型。
+- **持久化**：`ConnectionData` 新增 `PipeKind`；旧存档无该字段按 `Standard` 回读，宿主未注册的类型载入时自动回退 `Standard`。
+
+### 变更：允许部件名称为空
+
+- `NodeViewModel` 仅"未指定名称"（`null`）时回退类型默认名；显式传入空字符串表示"该部件不显示名称"，予以保留（原先空串/空白会被顶成默认名）。
+- 属性对话框「名称」清空后不再被视为取消，空串合法提交，可正确存档与回读。
+
+### 兼容性说明
+
+- 内置普通管路的外观（`#6C9BD2` / 2.0px，选中 `#E67E22` / 2.6px，`{4,4}` 0.6s 流动）**完全不变**，未做任何扩展的工程升级后外观一致。
+- 新建部件仍自动使用类型默认名（仅 `null` 回退），旧行为不变。
+- 新增 API 均为可选扩展，无破坏性变更。
+
 ## 1.2.4（2026-10-22）
 
 继续开放 `NodeRenderer` 中宿主自定义部件可能用到的颜色与工具，公共绘制面现已完整。

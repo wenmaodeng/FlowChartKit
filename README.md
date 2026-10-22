@@ -9,6 +9,7 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 - **宿主扩展**：业务部件类型由宿主常量定义（数值落盘），实现一个 `INodeDefinition` + 一次注册即可入画布与右键菜单（见下文三通阀示例）
 - **自适应画布**：`AutoFitCanvas` 默认开启，画布尺寸自动跟随控件可视区，无水平/垂直滚动条；关闭则按存档尺寸显示并可滚动
 - **管路系统**：正交布线、端口吸附、自由端、流向与流动画
+- **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
 - **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` 按编号下发，`NodeClickCommand` 上抛
 - **布局存档**：JSON 序列化带版本字段，载入前预校验、失败时画布状态一致
@@ -102,6 +103,70 @@ NodeDefinitionRegistry.Register(new ThreeWayValveDefinition());
 - 宿主也可用自定义定义覆盖内置类型外观（`Register` 优先于内置层），`IsBuiltIn(kind)` 可判断当前是否仍由内置定义提供。
 
 除注册表外，全部 API 限 UI 线程调用。
+
+## 宿主自定义管路
+
+管路的颜色、粗细与流动画同样可扩展，模式与部件完全一致（`PipeKind` + `IPipeDefinition` + `PipeDefinitionRegistry`）。以扩展一条**蒸汽管**为例：
+
+### 1. 定义管路类型常量
+
+`PipeKind` 仅含内置的 `Standard`（普通管路），业务管路由宿主用常量扩展：
+
+```csharp
+using FlowChartKit;
+
+public static class HostPipeKinds
+{
+    public const PipeKind Steam = (PipeKind)1000;   // 蒸汽管
+}
+```
+
+### 2. 实现 IPipeDefinition
+
+```csharp
+using System.Windows.Media;
+using FlowChartKit;
+using FlowChartKit.Rendering;
+
+public sealed class SteamPipeDefinition : IPipeDefinition
+{
+    public PipeKind Kind => HostPipeKinds.Steam;
+    public string DisplayName => "蒸汽管";
+
+    public Brush Stroke { get; } = NodeRenderer.Frozen(0xD0, 0x3A, 0x2B);
+    public double Thickness => 3.5;
+
+    public Brush SelectedStroke { get; } = NodeRenderer.Frozen(0xFF, 0x8A, 0x00);
+    public double SelectedThickness => 4.0;
+
+    // 虚线图案 {6,3}、0.3s 一个循环（比默认更快、更长的虚线段）
+    public PipeFlowSpec Flow { get; } = PipeFlowSpec.Create([6, 3], TimeSpan.FromSeconds(0.3));
+}
+```
+
+- `Flow = PipeFlowSpec.None` 表示该类型**不流动**（即使设置了流向也恒为实线）。
+- 画刷建议冻结后复用，可直接使用 `NodeRenderer.Frozen(r, g, b)`。
+
+### 3. 启动时注册
+
+```csharp
+PipeDefinitionRegistry.Register(new SteamPipeDefinition());
+```
+
+### 使用方式
+
+| 场景 | 做法 |
+|---|---|
+| 新建管路默认用该类型 | 画布设置 `DefaultPipeKind="{x:Static local:HostPipeKinds.Steam}"` |
+| 右键菜单挑类型 | 空白处右键 →「添加管路」→「扩展管路」下按 `DisplayName` 列出 |
+| 切换已有管路类型 | 选中管路 → 属性 →「管路类型」下拉 |
+| 代码创建 | `diagram.AddFreeConnection(start, end, pipeKind: HostPipeKinds.Steam)` |
+
+注册表同样是**内置只读层 + 宿主覆盖层**：
+
+- 注册后立即出现在菜单与属性对话框，并随存档持久化（`ConnectionData.PipeKind`）。
+- 用自定义定义覆盖 `PipeKind.Standard` 即可**全局改默认管路外观**（一行注册改掉所有普通管路的颜色/粗细/动画）。
+- `Unregister(kind)` 后回退内置定义；载入存档时若宿主未注册该类型，自动回退为 `Standard`（不会解析失败）。
 
 ## 文档
 

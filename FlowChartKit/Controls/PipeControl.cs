@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using FlowChartKit;
+using FlowChartKit.Rendering;
 using FlowChartKit.ViewModels;
 
 namespace FlowChartKit.Controls;
@@ -19,20 +20,23 @@ namespace FlowChartKit.Controls;
 /// </summary>
 public class PipeControl : Control
 {
-    private static readonly Brush PipeBrush = CreateBrush(0x6C, 0x9B, 0xD2);
-    private static readonly Brush SelectedBrush = CreateBrush(0xE6, 0x7E, 0x22);
+    // 端点手柄色为库内固定的交互元素配色，不随管路类型变化
     private static readonly Brush HandleStroke = CreateBrush(0x2F, 0x6F, 0xAF);
-
-    // 实线 Pen 冻结复用；虚线 Pen 每控件一对，共享可变的 DashStyle（DashOffset 动画驱动）
-    private static readonly Pen PipePen = MakePen(PipeBrush, 2.0, dash: null, freeze: true);
-    private static readonly Pen PipePenSelected = MakePen(SelectedBrush, 2.6, dash: null, freeze: true);
     private static readonly Pen HandlePen = MakePen(HandleStroke, 1.5, dash: null, freeze: true);
-    private static readonly Pen BadgePen = MakePen(PipeBrush, 1.6, dash: null, freeze: true);
-    private static readonly Pen BadgePenSelected = MakePen(SelectedBrush, 1.6, dash: null, freeze: true);
 
+    // 当前管路类型对应的画笔：实线（普通/选中）冻结复用；虚线笔每控件一对，共享可变 DashStyle（DashOffset 动画驱动）
     private readonly DashStyle _dashStyle = new(new double[] { 4, 4 }, 0);
-    private readonly Pen _dashPen;
-    private readonly Pen _dashPenSelected;
+    // 由 ApplyStyle 在构造函数中填充（= null! 仅为满足可空性分析）
+    private Pen _solidPen = null!;
+    private Pen _solidPenSelected = null!;
+    private Pen _badgePen = null!;
+    private Pen _badgePenSelected = null!;
+    private Pen _dashPen = null!;
+    private Pen _dashPenSelected = null!;
+
+    // 已应用样式的管路类型：类型未变则不重建画笔（宿主重新注册同类型定义时由 Resolve 取新定义）
+    private PipeKind _styleKind = PipeKind.Standard;
+    private IPipeDefinition _def = new StandardPipeDefinition();
 
     public static readonly DependencyProperty DashOffsetProperty = DependencyProperty.Register(
         nameof(DashOffset), typeof(double), typeof(PipeControl),
@@ -59,8 +63,7 @@ public class PipeControl : Control
 
     public PipeControl()
     {
-        _dashPen = MakePen(PipeBrush, 2.0, _dashStyle, freeze: false);
-        _dashPenSelected = MakePen(SelectedBrush, 2.6, _dashStyle, freeze: false);
+        ApplyStyle(PipeKind.Standard);
         DataContextChanged += OnDataContextChanged;
         Background = Brushes.Transparent;
         // Forever 动画的时钟会强引用本控件：卸载时必须停止，否则控件被计时系统根住无法回收
@@ -91,6 +94,8 @@ public class PipeControl : Control
         {
             _vm.PropertyChanged += OnVmPropertyChanged;
             EnsureDiagramHook();
+            // force：宿主可能在两次复用之间重新注册过该类型的定义
+            ApplyStyle(_vm.PipeKind, force: true);
             RebuildGeometry();
             UpdateFlowAnimation();
         }
@@ -129,6 +134,7 @@ public class PipeControl : Control
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_vm is null) return;
         switch (e.PropertyName)
         {
             case nameof(ConnectionViewModel.Points):
@@ -142,10 +148,35 @@ public class PipeControl : Control
                 UpdateFlowAnimation();
                 InvalidateVisual();
                 break;
+            case nameof(ConnectionViewModel.PipeKind):
+                // 类型变了：颜色/粗细/流动画规格都随之改变
+                ApplyStyle(_vm.PipeKind);
+                UpdateFlowAnimation();
+                InvalidateVisual();
+                break;
             case nameof(ConnectionViewModel.Number):
                 InvalidateVisual();
                 break;
         }
+    }
+
+    /// <summary>按管路类型重建画笔：实线笔冻结共享；虚线笔每控件一对，共享可变的 DashStyle（DashOffset 动画驱动）。</summary>
+    private void ApplyStyle(PipeKind kind, bool force = false)
+    {
+        if (!force && _styleKind == kind && _def is not null) return;
+
+        var def = PipeDefinitionRegistry.Resolve(kind);
+        _def = def;
+        _styleKind = kind;
+
+        _solidPen = MakePen(def.Stroke, def.Thickness, dash: null, freeze: true);
+        _solidPenSelected = MakePen(def.SelectedStroke, def.SelectedThickness, dash: null, freeze: true);
+        _badgePen = MakePen(def.Stroke, 1.6, dash: null, freeze: true);
+        _badgePenSelected = MakePen(def.SelectedStroke, 1.6, dash: null, freeze: true);
+
+        _dashStyle.Dashes = new DoubleCollection(def.Flow.Dash);
+        _dashPen = MakePen(def.Stroke, def.Thickness, _dashStyle, freeze: false);
+        _dashPenSelected = MakePen(def.SelectedStroke, def.SelectedThickness, _dashStyle, freeze: false);
     }
 
     private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -167,26 +198,24 @@ public class PipeControl : Control
     private void UpdateFlowAnimation()
     {
         if (_vm is null) return;
-        switch (_vm.Direction)
+
+        // 取当前类型的流动规格：不流动的类型或流向为 None 时恒为实线（不启动动画）
+        ApplyStyle(_vm.PipeKind);
+        var flow = _def.Flow;
+        if (!flow.Enabled || _vm.Direction == FlowMode.None)
         {
-            case FlowMode.Forward:
-                var fwd = new DoubleAnimation(8, 0, TimeSpan.FromSeconds(0.6))
-                {
-                    RepeatBehavior = RepeatBehavior.Forever
-                };
-                BeginAnimation(DashOffsetProperty, fwd);
-                break;
-            case FlowMode.Reverse:
-                var rev = new DoubleAnimation(0, 8, TimeSpan.FromSeconds(0.6))
-                {
-                    RepeatBehavior = RepeatBehavior.Forever
-                };
-                BeginAnimation(DashOffsetProperty, rev);
-                break;
-            default:
-                BeginAnimation(DashOffsetProperty, null);
-                break;
+            BeginAnimation(DashOffsetProperty, null);
+            return;
         }
+
+        // 动画在"一个 dash 循环"的位移量之间往复：正向源→目标，反向反之
+        double cycle = flow.Cycle;
+        var duration = flow.Duration;
+        DoubleAnimation animation = _vm.Direction == FlowMode.Forward
+            ? new DoubleAnimation(cycle, 0, duration)
+            : new DoubleAnimation(0, cycle, duration);
+        animation.RepeatBehavior = RepeatBehavior.Forever;
+        BeginAnimation(DashOffsetProperty, animation);
     }
 
     /// <summary>折线变化时重建几何与徽章中点；OnRender 不再做几何构建与长度累计。</summary>
@@ -242,7 +271,7 @@ public class PipeControl : Control
                 FlowDirection.LeftToRight,
                 new Typeface("Arial"),
                 11.0,
-                selected ? SelectedBrush : PipeBrush,
+                selected ? _def.SelectedStroke : _def.Stroke,
                 dpi);
             _badgeTextNumber = number;
             _badgeTextSelected = selected;
@@ -260,8 +289,12 @@ public class PipeControl : Control
         EnsureDiagramHook();
         var pts = vm.Points;
 
+        // 画笔按管路类型构建（宿主可在运行中更换类型或重新注册定义）
+        if (_styleKind != vm.PipeKind) ApplyStyle(vm.PipeKind);
+
         bool selected = vm.IsSelected;
-        bool dashed = vm.Direction != FlowMode.None;
+        // 仅"允许流动的类型 + 有流向"时才走虚线动画；否则恒为实线
+        bool dashed = _def.Flow.Enabled && vm.Direction != FlowMode.None;
         Pen pen;
         if (dashed)
         {
@@ -270,7 +303,7 @@ public class PipeControl : Control
         }
         else
         {
-            pen = selected ? PipePenSelected : PipePen;
+            pen = selected ? _solidPenSelected : _solidPen;
         }
 
         // 管路折线
@@ -287,7 +320,7 @@ public class PipeControl : Control
         if (_diagram?.ShowNumbers == true)
         {
             var center = _badgeCenter;
-            dc.DrawEllipse(Brushes.White, selected ? BadgePenSelected : BadgePen, center, 11, 11);
+            dc.DrawEllipse(Brushes.White, selected ? _badgePenSelected : _badgePen, center, 11, 11);
 
             var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             var ft = GetBadgeText(vm.Number, selected, dpi);

@@ -18,6 +18,17 @@ public enum NodeKind
 public enum PortDir { Up, Down, Left, Right }
 
 /// <summary>
+/// 管路类型。核心库仅内置 <see cref="Standard"/>（普通管路）；业务管路（如蒸汽管、废液管）
+/// 由宿主以同数值区间的常量扩展（如 <c>(PipeKind)1000</c>），序列化按枚举名落盘。
+/// 每种类型的颜色/粗细/流动画由 <c>IPipeDefinition</c> 提供（见 PipeDefinitionRegistry）。
+/// </summary>
+public enum PipeKind
+{
+    /// <summary>普通管路（默认）：蓝灰实线，流动时为等距虚线动画</summary>
+    Standard = 0
+}
+
+/// <summary>
 /// 开关部件的通断状态：作为 <c>NodeViewModel.State</c> 的约定载荷类型，
 /// 经 <c>SetNodeStateByNumberCommand</c>（或直接 <c>SetNodeState</c>）下发；
 /// 双击切换的也是此枚举。未匹配的载荷（null 或宿主自定义对象）按 Off 渲染。

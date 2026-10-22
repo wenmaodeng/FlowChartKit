@@ -76,6 +76,18 @@ public class ConnectionViewModel : ObservableBase
 
     public FlowMode Direction { get => _direction; set { if (Set(ref _direction, value)) Recompute(); } }
 
+    private PipeKind _pipeKind = PipeKind.Standard;
+    /// <summary>
+    /// 管路类型：决定颜色、粗细与流动画，由 <c>PipeDefinitionRegistry</c> 解析的 <c>IPipeDefinition</c> 提供；
+    /// 宿主可用自定义类型常量扩展（如 <c>(PipeKind)1000</c>）。变更会即时重绘并重启流动画。
+    /// </summary>
+    public PipeKind PipeKind
+    {
+        get => _pipeKind;
+        // Set 已发出属性通知：管路控件据此重建画笔并重启动画（类型决定颜色/粗细/是否流动）
+        set => Set(ref _pipeKind, value);
+    }
+
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
 
     /// <summary>正交布线后的折线顶点（画布绝对坐标）。</summary>

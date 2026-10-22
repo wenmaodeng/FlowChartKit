@@ -196,7 +196,8 @@ public class DiagramViewModel : ObservableBase
     public ConnectionViewModel AddConnection(
         NodeViewModel sourceNode, PortViewModel sourcePort,
         NodeViewModel targetNode, PortViewModel targetPort,
-        FlowMode direction = FlowMode.Forward, string? id = null)
+        FlowMode direction = FlowMode.Forward, string? id = null,
+        PipeKind pipeKind = PipeKind.Standard)
     {
         var conn = new ConnectionViewModel(this, id)
         {
@@ -204,7 +205,8 @@ public class DiagramViewModel : ObservableBase
             SourcePort = sourcePort,
             TargetNode = targetNode,
             TargetPort = targetPort,
-            Direction = direction
+            Direction = direction,
+            PipeKind = pipeKind
         };
         conn.Number = NextNumber();
         IndexConnection(conn, null, null);
@@ -224,9 +226,11 @@ public class DiagramViewModel : ObservableBase
     }
 
     /// <summary>添加一条两端均为自由点的管路，拖动端点即可吸附到部件端口。</summary>
-    public ConnectionViewModel AddFreeConnection(Point start, Point end, FlowMode direction = FlowMode.Forward)
+    public ConnectionViewModel AddFreeConnection(
+        Point start, Point end, FlowMode direction = FlowMode.Forward,
+        PipeKind pipeKind = PipeKind.Standard)
     {
-        var conn = new ConnectionViewModel(this) { Direction = direction };
+        var conn = new ConnectionViewModel(this) { Direction = direction, PipeKind = pipeKind };
         conn.SetFreeEnd(true, start);
         conn.SetFreeEnd(false, end);
         conn.Number = NextNumber();
@@ -452,6 +456,7 @@ public class DiagramViewModel : ObservableBase
                 Id = c.Id,
                 Number = c.Number,
                 Direction = c.Direction,
+                PipeKind = c.PipeKind,
                 SourceNodeId = c.SourceNode?.Id,
                 SourcePortId = c.SourcePort?.Id,
                 TargetNodeId = c.TargetNode?.Id,
@@ -532,7 +537,9 @@ public class DiagramViewModel : ObservableBase
 
         foreach (var cd in data.Connections)
         {
-            var conn = new ConnectionViewModel(this, cd.Id) { Direction = cd.Direction };
+            // 宿主尚未注册该类型（如换了宿主程序）时回退到内置普通管路，避免解析失败
+            var pipeKind = PipeDefinitionRegistry.IsAvailable(cd.PipeKind) ? cd.PipeKind : PipeKind.Standard;
+            var conn = new ConnectionViewModel(this, cd.Id) { Direction = cd.Direction, PipeKind = pipeKind };
             conn.Number = cd.Number > 0 ? cd.Number : ++nextConnNumber;
 
             if (cd.SourceNodeId is { } snId && map.TryGetValue(snId, out var sn))

@@ -44,7 +44,7 @@ internal static class CanvasContextMenuBuilder
             if (customGroup.Items.Count > 0)
                 addNode.Items.Add(customGroup);
             menu.Items.Add(addNode);
-            menu.Items.Add(NewItem("添加管路", host.AddConnectionCommand, null));
+            menu.Items.Add(NewAddConnectionMenu(host));
         }
 
         menu.Items.Add(new Separator());
@@ -55,6 +55,31 @@ internal static class CanvasContextMenuBuilder
 
     private static MenuItem NewItem(string header, ICommand command, object? parameter)
         => new() { Header = header, Command = command, CommandParameter = parameter };
+
+    /// <summary>
+    /// "添加管路"菜单：首项按 <see cref="DiagramCanvasControl.DefaultPipeKind"/> 直接添加；
+    /// 其后按注册表分组列出全部管路类型（内置管路 / 扩展管路），宿主注册的自定义类型供挑选。
+    /// </summary>
+    private static MenuItem NewAddConnectionMenu(DiagramCanvasControl host)
+    {
+        var addConnection = new MenuItem { Header = "添加管路" };
+
+        var defaultName = PipeDefinitionRegistry.IsAvailable(host.DefaultPipeKind)
+            ? PipeDefinitionRegistry.Resolve(host.DefaultPipeKind).DisplayName
+            : PipeDefinitionRegistry.Resolve(PipeKind.Standard).DisplayName;
+        addConnection.Items.Add(NewItem($"默认（{defaultName}）", host.AddConnectionCommand, null));
+
+        var builtInGroup = new MenuItem { Header = "内置管路" };
+        var customGroup = new MenuItem { Header = "扩展管路" };
+        foreach (var def in PipeDefinitionRegistry.All)
+            (PipeDefinitionRegistry.IsBuiltIn(def.Kind) ? builtInGroup : customGroup)
+                .Items.Add(NewItem(def.DisplayName, host.AddConnectionCommand, def.Kind));
+
+        addConnection.Items.Add(builtInGroup);
+        if (customGroup.Items.Count > 0)
+            addConnection.Items.Add(customGroup);
+        return addConnection;
+    }
 
     private static MenuItem NewEditableItem(DiagramCanvasControl host)
     {

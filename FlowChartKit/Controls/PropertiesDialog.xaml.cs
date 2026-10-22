@@ -114,6 +114,7 @@ public partial class PropertiesDialog : Window
         AddReadOnly("Id", connection.Id);
         AddReadOnly("编号", $"#{connection.Number}");
         AddReadOnly("名称", connection.DisplayName);
+        AddPipeKind(connection);
         AddDirection(connection);
         AddReadOnly("起点", DescribeEnd(connection.SourceNode, connection.SourcePort, connection.FreeSource));
         AddReadOnly("终点", DescribeEnd(connection.TargetNode, connection.TargetPort, connection.FreeTarget));
@@ -153,6 +154,45 @@ public partial class PropertiesDialog : Window
         };
 
         AddRow("流向", box);
+    }
+
+    /// <summary>
+    /// 管路类型下拉框：列出注册表中全部管路定义（内置 + 宿主扩展），
+    /// 选中即赋值 <see cref="ConnectionViewModel.PipeKind"/>，颜色/粗细/流动画即时生效。
+    /// </summary>
+    private void AddPipeKind(ConnectionViewModel connection)
+    {
+        var box = new ComboBox { Padding = new Thickness(4, 3, 4, 3) };
+
+        foreach (var def in PipeDefinitionRegistry.All)
+        {
+            var header = PipeDefinitionRegistry.IsBuiltIn(def.Kind)
+                ? def.DisplayName
+                : $"{def.DisplayName}（扩展）";
+            var item = new ComboBoxItem { Content = header, Tag = def.Kind };
+            box.Items.Add(item);
+            if (connection.PipeKind == def.Kind) box.SelectedItem = item;
+        }
+
+        // 当前类型未注册（宿主换了程序集）：补一项占位，避免下拉框显示为空
+        if (box.SelectedItem is null && PipeDefinitionRegistry.IsAvailable(connection.PipeKind))
+        {
+            var current = new ComboBoxItem
+            {
+                Content = PipeDefinitionRegistry.Resolve(connection.PipeKind).DisplayName,
+                Tag = connection.PipeKind
+            };
+            box.Items.Add(current);
+            box.SelectedItem = current;
+        }
+
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedItem is ComboBoxItem { Tag: PipeKind kind })
+                connection.PipeKind = kind;
+        };
+
+        AddRow("管路类型", box);
     }
 
     private void AddReadOnly(string name, string text)
