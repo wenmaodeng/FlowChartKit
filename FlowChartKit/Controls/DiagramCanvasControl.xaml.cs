@@ -76,6 +76,14 @@ public partial class DiagramCanvasControl : UserControl
         nameof(DefaultPipeKind), typeof(PipeKind), typeof(DiagramCanvasControl),
         new PropertyMetadata(PipeKind.Standard));
 
+    public static readonly DependencyProperty AlignmentSnapEnabledProperty = DependencyProperty.Register(
+        nameof(AlignmentSnapEnabled), typeof(bool), typeof(DiagramCanvasControl),
+        new PropertyMetadata(true, OnAlignmentSnapEnabledChanged));
+
+    public static readonly DependencyProperty AlignmentSnapDistanceProperty = DependencyProperty.Register(
+        nameof(AlignmentSnapDistance), typeof(double), typeof(DiagramCanvasControl),
+        new PropertyMetadata(6.0, OnAlignmentSnapDistanceChanged));
+
     private bool _layoutLoaded;
     private bool _initialLoadDone;
     /// <summary>自适应收敛执行中标记：Resize 引发的 CanvasWidth/Height 通知会再次触发收敛，防重入。</summary>
@@ -166,6 +174,54 @@ public partial class DiagramCanvasControl : UserControl
     {
         get => (PipeKind)GetValue(DefaultPipeKindProperty);
         set => SetValue(DefaultPipeKindProperty, value);
+    }
+
+    public static readonly DependencyProperty DefaultPipeRoutingProperty = DependencyProperty.Register(
+        nameof(DefaultPipeRouting), typeof(PipeRouting), typeof(DiagramCanvasControl),
+        new PropertyMetadata(PipeRouting.Orthogonal));
+
+    /// <summary>
+    /// 新建管路默认使用的连线布局（默认 <see cref="PipeRouting.Orthogonal"/> 垂直水平）。
+    /// 单条管路的布局可随时在属性对话框中切换。
+    /// </summary>
+    public PipeRouting DefaultPipeRouting
+    {
+        get => (PipeRouting)GetValue(DefaultPipeRoutingProperty);
+        set => SetValue(DefaultPipeRoutingProperty, value);
+    }
+
+    /// <summary>
+    /// 拖动部件时是否启用对齐吸附（**默认 true**）：靠近其它部件的左/右/居中、上/下/居中时
+    /// 自动吸附并显示捕捉线。设为 false 恢复为自由拖动。
+    /// </summary>
+    public bool AlignmentSnapEnabled
+    {
+        get => (bool)GetValue(AlignmentSnapEnabledProperty);
+        set => SetValue(AlignmentSnapEnabledProperty, value);
+    }
+
+    /// <summary>
+    /// 对齐吸附的触发距离（px，**默认 6**）：部件边或中线进入该距离内即吸附对齐。
+    /// </summary>
+    public double AlignmentSnapDistance
+    {
+        get => (double)GetValue(AlignmentSnapDistanceProperty);
+        set => SetValue(AlignmentSnapDistanceProperty, value);
+    }
+
+    private static void OnAlignmentSnapEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is DiagramCanvasControl { Diagram: { } diagram })
+        {
+            diagram.AlignmentSnapEnabled = (bool)e.NewValue;
+            if (!(bool)e.NewValue) diagram.ClearAlignmentGuides();
+        }
+    }
+
+    private static void OnAlignmentSnapDistanceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is DiagramCanvasControl { Diagram: { } diagram })
+            diagram.AlignmentSnapDistance = (double)e.NewValue;
     }
 
     /// <summary>布局序列化文件路径；未指定（null 或空白）时使用 <see cref="DiagramSerializer.DefaultFilePath"/>。</summary>
@@ -379,7 +435,7 @@ public partial class DiagramCanvasControl : UserControl
         var start = _menuPosition;
         // 自由端初始坐标同样钳位到画布内，避免落在画布外无法拾取
         var end = new Point(Math.Min(start.X + 120, Diagram.CanvasWidth), start.Y);
-        var conn = Diagram.AddFreeConnection(start, end, pipeKind: kind);
+        var conn = Diagram.AddFreeConnection(start, end, pipeKind: kind, routing: DefaultPipeRouting);
         Diagram.SelectedConnection = conn;
 
         var name = PipeDefinitionRegistry.Resolve(kind).DisplayName;
@@ -399,7 +455,11 @@ public partial class DiagramCanvasControl : UserControl
     private static void OnIsEditableChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is DiagramCanvasControl control)
+        {
             control.Diagram.IsEditable = (bool)e.NewValue;
+            // 退出编辑模式时清掉可能残留的对齐参考线
+            if (!(bool)e.NewValue) control.Diagram.ClearAlignmentGuides();
+        }
     }
 
     /// <summary>图模型侧改编辑模式时回写到依赖属性；SetCurrentValue 不会覆盖外部绑定。</summary>

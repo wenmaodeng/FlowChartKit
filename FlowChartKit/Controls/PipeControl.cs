@@ -47,8 +47,15 @@ public class PipeControl : Control
     private bool _draggingEndpoint;
     private bool _dragIsStart;
 
-    // 渲染缓存：折线几何、徽章中点、编号文本
+    // 正交布局：拖动中间线段
+    private bool _draggingSegment;
+    private bool _dragSegmentHorizontal;
+    private bool _segmentDragMoved;
+    private Point _segmentDragStart;
+
+    // 渲染缓存：路径几何、命中折线、徽章中点、编号文本
     private StreamGeometry? _geometry;
+    private Point[]? _hitPoints;
     private Point _badgeCenter;
     private FormattedText? _badgeText;
     private int _badgeTextNumber = -1;
@@ -101,7 +108,9 @@ public class PipeControl : Control
         }
         else
         {
+            _draggingSegment = false;
             _geometry = null;
+            _hitPoints = null;
             _badgeText = null;
             // VM 脱离时停止 Forever 动画，避免空转并根住控件
             BeginAnimation(DashOffsetProperty, null);
@@ -218,24 +227,68 @@ public class PipeControl : Control
         BeginAnimation(DashOffsetProperty, animation);
     }
 
-    /// <summary>折线变化时重建几何与徽章中点；OnRender 不再做几何构建与长度累计。</summary>
+    /// <summary>路径变化时重建几何与徽章中点；OnRender 不再做几何构建与长度累计。</summary>
     private void RebuildGeometry()
     {
         _geometry = null;
-        var pts = _vm?.Points;
-        if (pts is null || pts.Length < 2) return;
+        _hitPoints = null;
+        var vm = _vm;
+        var pts = vm?.Points;
+        if (vm is null || pts is null || pts.Length < 2) return;
 
         var geo = new StreamGeometry();
         using (var ctx = geo.Open())
         {
             ctx.BeginFigure(pts[0], false, false);
-            for (int i = 1; i < pts.Length; i++)
-                ctx.LineTo(pts[i], true, false);
+            if (vm.Routing == PipeRouting.Curved)
+            {
+                // 弧线：三次贝塞尔，控制点沿两端端口出线方向（切线方向与端口朝向一致）
+                ctx.BezierTo(vm.CurveControl1, vm.CurveControl2, pts[^1], true, false);
+            }
+            else
+            {
+                for (int i = 1; i < pts.Length; i++)
+                    ctx.LineTo(pts[i], true, false);
+            }
         }
         geo.Freeze();
         _geometry = geo;
-        _badgeCenter = ComputeBadgeCenter(pts);
+        _badgeCenter = vm.Routing == PipeRouting.Curved
+            ? BezierMidpoint(pts[0], vm.CurveControl1, vm.CurveControl2, pts[^1])
+            : ComputeBadgeCenter(pts);
+        // 命中用折线：弧线按贝塞尔采样成折线，命中判定与折线统一走"点到线段距离"（比
+        // Geometry.StrokeContains 的加宽计算便宜得多，且两端重合的退化管路也能点中）
+        _hitPoints = vm.Routing == PipeRouting.Curved
+            ? SampleBezier(pts[0], vm.CurveControl1, vm.CurveControl2, pts[^1], CurveHitSamples)
+            : pts;
     }
+
+    /// <summary>命中折线的弧线采样段数：16 段时与曲线的最大偏差已远小于 1px。</summary>
+    private const int CurveHitSamples = 16;
+
+    /// <summary>把三次贝塞尔采样成折线（含首尾点，共 samples + 1 个顶点）。</summary>
+    private static Point[] SampleBezier(Point p0, Point c1, Point c2, Point p3, int samples)
+    {
+        var arr = new Point[samples + 1];
+        for (int i = 0; i <= samples; i++)
+        {
+            double t = (double)i / samples;
+            double u = 1 - t;
+            double b0 = u * u * u;
+            double b1 = 3 * u * u * t;
+            double b2 = 3 * u * t * t;
+            double b3 = t * t * t;
+            arr[i] = new Point(
+                b0 * p0.X + b1 * c1.X + b2 * c2.X + b3 * p3.X,
+                b0 * p0.Y + b1 * c1.Y + b2 * c2.Y + b3 * p3.Y);
+        }
+        return arr;
+    }
+
+    /// <summary>三次贝塞尔 t=0.5 处的点：P = (P0 + 3C1 + 3C2 + P3) / 8。</summary>
+    private static Point BezierMidpoint(Point p0, Point c1, Point c2, Point p3)
+        => new((p0.X + 3 * c1.X + 3 * c2.X + p3.X) / 8,
+               (p0.Y + 3 * c1.Y + 3 * c2.Y + p3.Y) / 8);
 
     /// <summary>折线长度中点：作为编号徽章位置。</summary>
     private static Point ComputeBadgeCenter(Point[] pts)
@@ -331,10 +384,10 @@ public class PipeControl : Control
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)
     {
         var p = hitTestParameters.HitPoint;
-        var pts = _vm?.Points;
+        var pts = _hitPoints;
         if (pts is null || pts.Length < 2) return null;
 
-        // 距离阈值 8 的平方，全程不开根号
+        // 折线 / 直线 / 弧线统一按"点到线段距离"命中（弧线用采样折线），容差 8 的平方，全程不开根号
         const double thresholdSquared = 8.0 * 8.0;
         for (int i = 0; i < pts.Length - 1; i++)
         {
@@ -366,17 +419,92 @@ public class PipeControl : Control
             return;
         }
 
-        e.Handled = true;
-        if (_diagram is { } diagram)
+        // 正交布局：按住中间线段可直接拖动（水平段上下移、竖直段左右移）
+        if (_diagram is { IsEditable: true } diagram
+            && vm.Routing == PipeRouting.Orthogonal
+            && TryHitMiddleSegment(vm, p, out bool horizontal))
         {
+            e.Handled = true;
+            _draggingSegment = true;
+            _dragSegmentHorizontal = horizontal;
+            _segmentDragMoved = false;
+            _segmentDragStart = p;
+            CaptureMouse();
+            Focus();
             diagram.SelectedConnection = vm;
+            diagram.BeginConnectionSegmentDrag(vm);
+            return;
+        }
+
+        e.Handled = true;
+        if (_diagram is { } selectedDiagram)
+        {
+            selectedDiagram.SelectedConnection = vm;
             Focus(); // 选中即落焦点：Delete/Esc 等键盘事件经冒泡可达画布
         }
+    }
+
+    /// <summary>
+    /// 命中"中间线段"：首段与末段是端口出线段（端点固定），不可拖动；
+    /// 命中容差 ±8px，输出该段是否水平（水平段按 Y 平移，竖直段按 X 平移）。
+    /// </summary>
+    private static bool TryHitMiddleSegment(ConnectionViewModel vm, Point p, out bool horizontal)
+    {
+        horizontal = false;
+        var pts = vm.Points;
+        // 首末段各占一段，至少 4 点才可能存在中间段
+        if (pts.Length < 4) return false;
+
+        const double thresholdSquared = 8.0 * 8.0;
+        double best = double.MaxValue;
+        int bestIndex = -1;
+        for (int i = 1; i < pts.Length - 2; i++)
+        {
+            double d = DistanceToSegmentSquared(p, pts[i], pts[i + 1]);
+            if (d <= thresholdSquared && d < best)
+            {
+                best = d;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < 0) return false;
+        horizontal = Math.Abs(pts[bestIndex].Y - pts[bestIndex + 1].Y) < 0.01;
+        return true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+
+        // 拖动中间线段（正交布局）
+        if (_draggingSegment)
+        {
+            if (!IsMouseCaptured || _vm is null) return;
+
+            // 拖拽中途切出编辑模式：立即终止，避免运行模式下继续改写图模型
+            if (_diagram is not { IsEditable: true } segDiagram)
+            {
+                FinishSegmentDrag(cancel: true);
+                return;
+            }
+
+            var sp = e.GetPosition(this);
+            // 超过系统拖拽阈值前不视为拖动：避免误吞点击
+            if (!_segmentDragMoved)
+            {
+                if (Math.Abs(sp.X - _segmentDragStart.X) < SystemParameters.MinimumHorizontalDragDistance
+                    && Math.Abs(sp.Y - _segmentDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+                    return;
+                _segmentDragMoved = true;
+            }
+
+            // 水平段按 Y 平移（垂直移动），竖直段按 X 平移（水平移动）
+            segDiagram.UpdateConnectionSegmentDrag(
+                _vm, _dragSegmentHorizontal, _dragSegmentHorizontal ? sp.Y : sp.X);
+            return;
+        }
+
         if (!_draggingEndpoint || !IsMouseCaptured || _vm is null) return;
 
         // 拖拽中途切出编辑模式：立即终止本次端点拖拽，避免运行模式下继续改写图模型
@@ -393,6 +521,8 @@ public class PipeControl : Control
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_draggingSegment)
+            FinishSegmentDrag(cancel: false);
         if (_draggingEndpoint)
             FinishEndpointDrag();
     }
@@ -401,16 +531,28 @@ public class PipeControl : Control
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_draggingSegment)
+            FinishSegmentDrag(cancel: false);
         if (_draggingEndpoint)
             FinishEndpointDrag();
     }
 
-    /// <summary>Esc 取消端点拖拽：回退到拖拽前锚点并退出拖拽态（区别于抬起路径的提交落点）。
-    /// 端点拖拽开始时已落焦点，键盘事件由此处接收后交图模型编排回退。</summary>
+    /// <summary>Esc 取消拖拽：端点回退到拖拽前锚点；中间线段回退到拖动前的绕行位置。
+    /// 拖拽开始时已落焦点，键盘事件由此处接收后交图模型编排回退。</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || !_draggingEndpoint) return;
+        if (e.Key != Key.Escape) return;
+
+        if (_draggingSegment)
+        {
+            e.Handled = true;
+            FinishSegmentDrag(cancel: true);
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            return;
+        }
+
+        if (!_draggingEndpoint) return;
 
         e.Handled = true;
         _draggingEndpoint = false;
@@ -424,6 +566,19 @@ public class PipeControl : Control
     {
         _draggingEndpoint = false;
         if (_vm is { } conn) _diagram?.EndConnectionEndpointDrag(conn);
+        if (IsMouseCaptured) ReleaseMouseCapture();
+    }
+
+    /// <summary>收尾中间线段拖拽：提交（或 Esc 回退）绕行位置。
+    /// 须先清 _draggingSegment 再释放捕获，使释放捕获触发的 LostMouseCapture 成为空操作。</summary>
+    private void FinishSegmentDrag(bool cancel)
+    {
+        _draggingSegment = false;
+        if (_vm is { } conn)
+        {
+            if (cancel) _diagram?.CancelConnectionSegmentDrag(conn);
+            else _diagram?.EndConnectionSegmentDrag(conn);
+        }
         if (IsMouseCaptured) ReleaseMouseCapture();
     }
 

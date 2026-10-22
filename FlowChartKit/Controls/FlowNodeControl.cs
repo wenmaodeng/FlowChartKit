@@ -360,6 +360,7 @@ public class FlowNodeControl : Control
         if (Diagram is not { IsEditable: true })
         {
             _dragging = false;
+            ClearAlignmentGuides();
             if (IsMouseCaptured) ReleaseMouseCapture();
             Cursor = Cursors.Arrow;
             return;
@@ -388,10 +389,19 @@ public class FlowNodeControl : Control
         {
             nx = Math.Clamp(nx, 0, Math.Max(0, diagram.CanvasWidth - _vm.ShapeWidth));
             ny = Math.Clamp(ny, 0, Math.Max(0, diagram.CanvasHeight - _vm.ShapeHeight));
+
+            // 与其它部件对齐吸附（左/居中/右、上/居中/下）：吸附量再夹取一次，避免被推出画布
+            var snap = diagram.SnapNode(_vm, nx, ny);
+            nx = Math.Clamp(snap.X, 0, Math.Max(0, diagram.CanvasWidth - _vm.ShapeWidth));
+            ny = Math.Clamp(snap.Y, 0, Math.Max(0, diagram.CanvasHeight - _vm.ShapeHeight));
+            diagram.SetAlignmentGuides(snap.Guides);
         }
         // 一次逻辑移动只触发一次 GeometryChanged，相连管路每帧只重算一次
         _vm.MoveTo(nx, ny);
     }
+
+    /// <summary>清除画布上的对齐参考线（拖动结束/取消时调用；图模型为空时空转）。</summary>
+    private void ClearAlignmentGuides() => _vm?.Diagram?.ClearAlignmentGuides();
 
     /// <summary>捕获被外部夺走（如模态对话框弹出）：复位拖拽标志与光标，避免残留导致后续鼠标事件走拖拽路径。</summary>
     protected override void OnLostMouseCapture(MouseEventArgs e)
@@ -399,6 +409,7 @@ public class FlowNodeControl : Control
         base.OnLostMouseCapture(e);
         if (!_dragging) return;
         _dragging = false;
+        ClearAlignmentGuides();
         Cursor = Cursors.Arrow;
     }
 
@@ -408,6 +419,7 @@ public class FlowNodeControl : Control
         if (_dragging)
         {
             _dragging = false;
+            ClearAlignmentGuides();
             if (IsMouseCaptured) ReleaseMouseCapture();
             Cursor = Cursors.Arrow;
         }

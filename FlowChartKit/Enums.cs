@@ -29,6 +29,20 @@ public enum PipeKind
 }
 
 /// <summary>
+/// 管路连线布局。决定两点之间如何走线，与管路样式（<see cref="PipeKind"/>）互不影响：
+/// 同一条管路可以既是"蒸汽管"又是"弧线"。
+/// </summary>
+public enum PipeRouting
+{
+    /// <summary>垂直水平（默认）：横平竖直的正交折线，带端口出线短直段；可拖动中间线段调整绕行位置</summary>
+    Orthogonal = 0,
+    /// <summary>直线：两端点直接连线（可能穿过部件）</summary>
+    Straight = 1,
+    /// <summary>弧线：按端口出线方向生成的三次贝塞尔曲线，端口处切线方向与端口朝向一致</summary>
+    Curved = 2
+}
+
+/// <summary>
 /// 开关部件的通断状态：作为 <c>NodeViewModel.State</c> 的约定载荷类型，
 /// 经 <c>SetNodeStateByNumberCommand</c>（或直接 <c>SetNodeState</c>）下发；
 /// 双击切换的也是此枚举。未匹配的载荷（null 或宿主自定义对象）按 Off 渲染。
@@ -77,6 +91,17 @@ public static class PortDirExtensions
         PortDir.Down => new Vector(0, 1),
         PortDir.Left => new Vector(-1, 0),
         _ => new Vector(1, 0)
+    };
+}
+
+/// <summary>连线布局的默认显示名（属性对话框与宿主下拉框共用）</summary>
+public static class PipeRoutingDefaults
+{
+    public static string DisplayName(PipeRouting routing) => routing switch
+    {
+        PipeRouting.Straight => "直线",
+        PipeRouting.Curved => "弧线",
+        _ => "垂直水平"
     };
 }
 

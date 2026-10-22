@@ -1,5 +1,31 @@
 # FlowChartKit 发布说明
 
+## 1.4.0（2026-10-22）
+
+部件与管路的编辑体验增强：拖动部件时的对齐吸附捕捉线，管路连线布局可选（垂直水平 / 直线 / 弧线）。
+
+![效果预览](https://raw.githubusercontent.com/wenmaodeng/FlowChartKit/main/demo.png)
+
+### 新增：拖动对齐吸附
+
+- 拖动部件靠近其它部件的**左/右/居中、上/下/居中**时自动吸附，并显示橙色虚线捕捉线（覆盖两部件的并集范围）。
+- 触发距离 `AlignmentSnapDistance`（默认 6px）可调；画布设 `AlignmentSnapEnabled="False"` 可整体关闭，恢复自由拖动。
+- 图模型侧对应 `DiagramViewModel.SnapNode / AlignmentGuides`，捕捉线由专用图层绘制（不参与命中测试）。
+
+### 新增：管路连线布局可选
+
+- 新枚举 `PipeRouting`：`Orthogonal`（垂直水平，默认，行为与旧版一致）/ `Straight`（直线）/ `Curved`（弧线，端口处切线方向与端口朝向一致）。
+- 每条管路可在属性对话框「连线布局」下拉随时切换，与管路样式（`PipeKind`）独立组合。
+- **垂直水平布局支持拖动中间线段**：水平段可上下移动、竖直段可左右移动，调整绕行路径（Esc 取消），绕行位置随存档持久化（`ConnectionData.DetourX / DetourY`）。
+- **API**：`ConnectionViewModel.Routing` / `SetDetour(x, y)`（复位手动绕行）、`AddConnection(...)` / `AddFreeConnection(...)` 新增可选 `routing` 参数、画布 `DefaultPipeRouting`（新建管路默认布局）。
+- **UI 入口**：管路属性对话框新增「连线布局」下拉与「复位为自动走线」按钮。
+- **持久化**：`ConnectionData` 新增 `Routing`；旧存档无该字段按 `Orthogonal` 回读。
+
+### 兼容性说明
+
+- 新建管路默认仍为垂直水平布局，内置普通管路外观不变，未做任何扩展的工程升级后视觉与交互一致。
+- 对齐吸附**默认开启**：已有工程升级后拖动手感会变化（自动吸附对齐），如需旧行为设 `AlignmentSnapEnabled="False"`。
+
 ## 1.3.0（2026-10-22）
 
 管路的颜色、粗细与流动画改为**外部可扩展**，管路同部件一样分为内置与外置（宿主注册）两类；同时允许部件名称为空。

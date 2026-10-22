@@ -61,6 +61,12 @@
                     </Style>
                 </ItemsControl.ItemContainerStyle>
             </ItemsControl>
+            <!-- 对齐参考线（捕捉线）：覆盖整个画布、不参与命中测试 -->
+            <fc:AlignmentGuideLayer
+                Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
+                Height="{Binding Diagram.CanvasHeight, ElementName=Root}"
+                Canvas.Left="0" Canvas.Top="0"
+                Guides="{Binding Diagram.AlignmentGuides, ElementName=Root}" />
         </Canvas>
     </ScrollViewer>
 </UserControl>

@@ -73,6 +73,9 @@ public class MainViewModel : ObservableBase
         ApplyPipeKindCommand = new RelayCommand(_ => ApplyPipeKind(), _ => Diagram is not null);
         BuildPipeDemoCommand = new RelayCommand(_ => BuildPipeDemo(), _ => Diagram is not null);
         AddNamelessNodeCommand = new RelayCommand(_ => AddNamelessNode(), _ => Diagram is not null);
+
+        // 连线布局测试：切换选中管路的走线方式（垂直水平 / 直线 / 弧线）
+        ApplyRoutingCommand = new RelayCommand(_ => ApplyRouting(), _ => Diagram is not null);
     }
 
     /// <summary>由画布控件的同名依赖属性经 OneWayToSource 绑定灌入；未接线时为 null。</summary>
@@ -142,6 +145,7 @@ public class MainViewModel : ObservableBase
             ApplyPipeKindCommand.RaiseCanExecuteChanged();
             BuildPipeDemoCommand.RaiseCanExecuteChanged();
             AddNamelessNodeCommand.RaiseCanExecuteChanged();
+            ApplyRoutingCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -180,6 +184,48 @@ public class MainViewModel : ObservableBase
 
     /// <summary>添加一个名称为空的部件，验证"名称允许为空"。</summary>
     public RelayCommand AddNamelessNodeCommand { get; }
+
+    /// <summary>把 <see cref="SelectedRouting"/> 应用到当前选中的管路。</summary>
+    public RelayCommand ApplyRoutingCommand { get; }
+
+    /// <summary>连线布局下拉条目：显示名 + 布局值。</summary>
+    public sealed record PipeRoutingItem(PipeRouting Value, string Text);
+
+    /// <summary>可选连线布局：垂直水平（可拖中间线段）/ 直线 / 弧线。</summary>
+    public IReadOnlyList<PipeRoutingItem> Routings { get; } =
+        new[] { PipeRouting.Orthogonal, PipeRouting.Straight, PipeRouting.Curved }
+            .Select(r => new PipeRoutingItem(r, PipeRoutingDefaults.DisplayName(r)))
+            .ToList();
+
+    private PipeRouting _selectedRouting = PipeRouting.Curved;
+    /// <summary>要应用到选中管路的连线布局。</summary>
+    public PipeRouting SelectedRouting
+    {
+        get => _selectedRouting;
+        set => Set(ref _selectedRouting, value);
+    }
+
+    private PipeRouting _defaultRouting = PipeRouting.Orthogonal;
+    /// <summary>画布 <c>DefaultPipeRouting</c>：新建管路使用的连线布局。</summary>
+    public PipeRouting DefaultRouting
+    {
+        get => _defaultRouting;
+        set => Set(ref _defaultRouting, value);
+    }
+
+    private void ApplyRouting()
+    {
+        if (Diagram?.SelectedConnection is not { } conn)
+        {
+            StatusText = "未选中管路：先在画布上单击一条管路";
+            return;
+        }
+
+        conn.Routing = SelectedRouting;
+        StatusText = SelectedRouting == PipeRouting.Orthogonal
+            ? $"管路 #{conn.Number} 已改为「垂直水平」（拖动中间水平段可上下移、竖直段可左右移）"
+            : $"管路 #{conn.Number} 已改为「{PipeRoutingDefaults.DisplayName(SelectedRouting)}」";
+    }
 
     private static string NameOf(PipeKind kind) => PipeDefinitionRegistry.Resolve(kind).DisplayName;
 

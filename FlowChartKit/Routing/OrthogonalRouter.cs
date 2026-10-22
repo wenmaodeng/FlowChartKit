@@ -5,10 +5,20 @@ namespace FlowChartKit.Routing;
 /// <summary>
 /// 正交（横平竖直）布线器：按端口出口方向生成 L/Z 形路径，
 /// 端口处带短直段（stub）避免在端口处出现反向折角。
+/// 可选参数 detourX / detourY 用于覆盖中间竖直段 / 水平段的位置，
+/// 供用户拖动线段调整绕行路径；不指定时按端口方向自动取位（与旧行为完全一致）。
 /// </summary>
 public static class OrthogonalRouter
 {
     public static List<Point> Route(Point s, PortDir sDir, Point e, PortDir eDir, double stub = 16)
+        => Route(s, sDir, e, eDir, null, null, stub);
+
+    /// <summary>
+    /// 生成正交折线。<paramref name="detourX"/> 指定中间竖直段的 X，
+    /// <paramref name="detourY"/> 指定中间水平段的 Y（null 表示自动取位）。
+    /// </summary>
+    public static List<Point> Route(Point s, PortDir sDir, Point e, PortDir eDir,
+        double? detourX, double? detourY, double stub = 16)
     {
         var sv = sDir.Vec();
         var ev = eDir.Vec();
@@ -19,31 +29,37 @@ public static class OrthogonalRouter
 
         if (sv.X != 0) // 起点水平出线
         {
-            if (Math.Abs(s1.Y - e1.Y) < 0.01)
-            {
-                pts.Add(e1);
-            }
-            else
-            {
-                bool continueX = Math.Abs(e1.X - s1.X) < 0.01 || Math.Sign(e1.X - s1.X) == Math.Sign(sv.X);
-                pts.Add(continueX ? new Point(e1.X, s1.Y) : new Point(s1.X, e1.Y));
-                pts.Add(e1);
-            }
+            // 中间竖直段的 X：默认沿用"继续同向则落在 e1.X，否则落在 s1.X"的判定；
+            // 仅指定了水平段位置（detourY）时，把竖线落在两端中点，形成可绕行的 S 形
+            double mx = detourX ?? (detourY.HasValue
+                ? (s1.X + e1.X) / 2
+                : (Math.Abs(e1.X - s1.X) < 0.01 || Math.Sign(e1.X - s1.X) == Math.Sign(sv.X)
+                    ? e1.X
+                    : s1.X));
+            // 中间水平段的 Y：默认与目标出线段齐平
+            double my = detourY ?? e1.Y;
+
+            pts.Add(new Point(mx, s1.Y));
+            pts.Add(new Point(mx, my));
+            pts.Add(new Point(e1.X, my));
         }
         else // 起点垂直出线
         {
-            if (Math.Abs(s1.X - e1.X) < 0.01)
-            {
-                pts.Add(e1);
-            }
-            else
-            {
-                bool continueY = Math.Abs(e1.Y - s1.Y) < 0.01 || Math.Sign(e1.Y - s1.Y) == Math.Sign(sv.Y);
-                pts.Add(continueY ? new Point(s1.X, e1.Y) : new Point(e1.X, s1.Y));
-                pts.Add(e1);
-            }
+            // 中间水平段的 Y：默认沿用"继续同向则落在 e1.Y，否则落在 s1.Y"的判定；
+            // 仅指定了竖直段位置（detourX）时，把横线落在两端中点，形成可绕行的 S 形
+            double my = detourY ?? (detourX.HasValue
+                ? (s1.Y + e1.Y) / 2
+                : (Math.Abs(e1.Y - s1.Y) < 0.01 || Math.Sign(e1.Y - s1.Y) == Math.Sign(sv.Y)
+                    ? e1.Y
+                    : s1.Y));
+            double mx = detourX ?? e1.X;
+
+            pts.Add(new Point(s1.X, my));
+            pts.Add(new Point(mx, my));
+            pts.Add(new Point(mx, e1.Y));
         }
 
+        pts.Add(e1);
         pts.Add(e);
         return Clean(pts);
     }

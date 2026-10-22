@@ -46,4 +46,13 @@ public sealed class ConnectionData
 
     /// <summary>管路类型（决定颜色/粗细/流动画）；缺省为内置普通管路，旧存档无此字段时按该默认值回读。</summary>
     public PipeKind PipeKind { get; set; } = PipeKind.Standard;
+
+    /// <summary>连线布局（垂直水平/直线/弧线）；缺省为垂直水平，旧存档无此字段时按该默认值回读。</summary>
+    public PipeRouting Routing { get; set; } = PipeRouting.Orthogonal;
+
+    /// <summary>正交布局下手工拖动中间竖直段后的 X 坐标；null 表示按端口方向自动取位。</summary>
+    public double? DetourX { get; set; }
+
+    /// <summary>正交布局下手工拖动中间水平段后的 Y 坐标；null 表示按端口方向自动取位。</summary>
+    public double? DetourY { get; set; }
 }

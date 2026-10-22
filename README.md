@@ -2,13 +2,16 @@
 
 WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管路 + 流向的编辑与运行双模式画布。全部图形经 C# `OnRender` 矢量自绘，高 DPI 下清晰，无 ControlTemplate 依赖。
 
+![FlowChartKit 效果预览](https://raw.githubusercontent.com/wenmaodeng/FlowChartKit/main/demo.png)
+
 ## 特性
 
 - **部件定义自管理**：名称、基准尺寸、端点、外观集中在一个 `INodeDefinition` 实现里，经 `NodeDefinitionRegistry` 注册（内置层只读 + 宿主覆盖层）
 - **内置部件**：LED 指示灯（四色循环）、开关（通/断），支持双击自切换与程序化状态下发
 - **宿主扩展**：业务部件类型由宿主常量定义（数值落盘），实现一个 `INodeDefinition` + 一次注册即可入画布与右键菜单（见下文三通阀示例）
 - **自适应画布**：`AutoFitCanvas` 默认开启，画布尺寸自动跟随控件可视区，无水平/垂直滚动条；关闭则按存档尺寸显示并可滚动
-- **管路系统**：正交布线、端口吸附、自由端、流向与流动画
+- **管路系统**：端口吸附、自由端、流向与流动画；连线布局可选「垂直水平（正交，可拖动中间线段调整绕行）/ 直线 / 弧线」（`PipeRouting`），与管路样式独立组合
+- **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附并显示橙色捕捉线
 - **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
 - **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` 按编号下发，`NodeClickCommand` 上抛
@@ -167,6 +170,41 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 - 注册后立即出现在菜单与属性对话框，并随存档持久化（`ConnectionData.PipeKind`）。
 - 用自定义定义覆盖 `PipeKind.Standard` 即可**全局改默认管路外观**（一行注册改掉所有普通管路的颜色/粗细/动画）。
 - `Unregister(kind)` 后回退内置定义；载入存档时若宿主未注册该类型，自动回退为 `Standard`（不会解析失败）。
+
+## 连线布局
+
+每条管路的走线方式与管路样式（`PipeKind`）**独立组合**：既是"蒸汽管"也可以走弧线。
+
+| 布局 | 说明 |
+|---|---|
+| `PipeRouting.Orthogonal`（默认） | 垂直水平：横平竖直折线 + 端口出线短直段，可拖动中间线段调整绕行 |
+| `PipeRouting.Straight` | 直线：两端点直接连线（可能穿过部件） |
+| `PipeRouting.Curved` | 弧线：三次贝塞尔，端口处切线方向与端口朝向一致 |
+
+| 场景 | 做法 |
+|---|---|
+| 新建管路默认用该布局 | 画布设置 `DefaultPipeRouting="Curved"` |
+| 切换已有管路 | 选中管路 → 属性 →「连线布局」下拉 |
+| 代码创建 | `diagram.AddFreeConnection(start, end, routing: PipeRouting.Curved)` |
+| 复位手动绕行 | 选中管路 → 属性 →「复位为自动走线」，或 `conn.SetDetour(null, null)` |
+
+**垂直水平布局支持拖动中间线段**：水平段随鼠标上下移动、竖直段随鼠标左右移动（拖动中按 Esc 回退），路径始终保持横平竖直，绕行位置随存档持久化（`ConnectionData.DetourX / DetourY`）。旧存档无 `Routing` 字段按 `Orthogonal` 回读。
+
+## 拖动对齐吸附
+
+拖动部件靠近其它部件的**左 / 居中 / 右、上 / 居中 / 下**时自动吸附对齐，并显示橙色虚线捕捉线（覆盖两个部件的并集范围）：
+
+```xml
+<fc:DiagramCanvasControl AlignmentSnapEnabled="True"
+                         AlignmentSnapDistance="6" />
+```
+
+| 开关 | 说明 |
+|---|---|
+| `AlignmentSnapEnabled` | 默认 `true`；设为 `false` 恢复自由拖动，不再生成捕捉线 |
+| `AlignmentSnapDistance` | 默认 `6`px，进入该距离即吸附 |
+
+代码侧：`DiagramViewModel.SnapNode(node, x, y)` 返回吸附后坐标与参考线集合（`AlignmentGuide`），当前参考线见 `DiagramViewModel.AlignmentGuides`，由画布的对齐线图层绘制（不参与命中测试）；拖动结束或退出编辑模式会自动清空。
 
 ## 文档
 

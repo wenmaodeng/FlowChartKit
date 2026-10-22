@@ -166,6 +166,121 @@ public class DiagramViewModel : ObservableBase
     /// <summary>清除管路选中状态（部件选中时调用）。</summary>
     public void ClearConnectionSelection() => SelectedConnection = null;
 
+    // ---- 对齐捕捉（拖动部件时与其它部件对齐） ----
+
+    private bool _alignmentSnapEnabled = true;
+    private double _alignmentSnapDistance = 6.0;
+    private IReadOnlyList<AlignmentGuide> _alignmentGuides = Array.Empty<AlignmentGuide>();
+
+    /// <summary>拖动部件时是否启用与其它部件的对齐吸附（默认 true）。关闭后不再生成捕捉线。</summary>
+    public bool AlignmentSnapEnabled
+    {
+        get => _alignmentSnapEnabled;
+        set => Set(ref _alignmentSnapEnabled, value);
+    }
+
+    /// <summary>对齐吸附的触发距离（px，默认 6）：部件边/中线进入该距离内即吸附对齐。</summary>
+    public double AlignmentSnapDistance
+    {
+        get => _alignmentSnapDistance;
+        set => Set(ref _alignmentSnapDistance, Math.Max(0, value));
+    }
+
+    /// <summary>当前需要绘制的对齐参考线；拖动结束时清空。由画布的对齐线图层绘制。</summary>
+    public IReadOnlyList<AlignmentGuide> AlignmentGuides
+    {
+        get => _alignmentGuides;
+        private set => Set(ref _alignmentGuides, value);
+    }
+
+    /// <summary>更新参考线集合（传 null 或空集合表示清空）。</summary>
+    public void SetAlignmentGuides(IReadOnlyList<AlignmentGuide>? guides)
+    {
+        // 拖动中每帧都会调用：无参考线且当前已为空时不重复发通知（避免每帧触发图层重绘）
+        if (guides is null || guides.Count == 0)
+        {
+            if (_alignmentGuides.Count == 0) return;
+            AlignmentGuides = Array.Empty<AlignmentGuide>();
+            return;
+        }
+        AlignmentGuides = guides;
+    }
+
+    /// <summary>清空参考线（拖动结束/取消、或退出编辑模式时调用）。</summary>
+    public void ClearAlignmentGuides() => SetAlignmentGuides(null);
+
+    /// <summary>
+    /// 计算部件落到 (x, y) 时与其它部件的对齐吸附：X 方向按左 / 居中 / 右，Y 方向按上 / 居中 / 下，
+    /// 每轴取最近的一个候选（阈值内）并生成对应参考线。未启用或无候选时原样返回。
+    /// </summary>
+    public NodeSnapResult SnapNode(NodeViewModel node, double x, double y)
+    {
+        List<AlignmentGuide>? guides = null;
+        if (!_alignmentSnapEnabled || _alignmentSnapDistance <= 0)
+            return new NodeSnapResult(x, y, Array.Empty<AlignmentGuide>());
+
+        double w = node.ShapeWidth;
+        double h = node.ShapeHeight;
+        double threshold = _alignmentSnapDistance;
+
+        double? snapX = null, snapY = null;
+        double bestX = threshold, bestY = threshold;   // 记录最小的绝对偏差
+        AlignmentGuide? guideX = null, guideY = null;
+
+        foreach (var other in Nodes)
+        {
+            if (ReferenceEquals(other, node)) continue;
+            double ow = other.ShapeWidth;
+            double oh = other.ShapeHeight;
+
+            // 竖线（X 方向）：被拖部件的左/中/右 对齐到 参考部件的左/中/右
+            TryMatch(x, w, other.X, ow, ref bestX, ref snapX, ref guideX,
+                target => new AlignmentGuide(true, target,
+                    Math.Min(y, other.Y) - GuidePad,
+                    Math.Max(y + h, other.Y + oh) + GuidePad));
+
+            // 横线（Y 方向）：被拖部件的上/中/下 对齐到 参考部件的上/中/下
+            TryMatch(y, h, other.Y, oh, ref bestY, ref snapY, ref guideY,
+                target => new AlignmentGuide(false, target,
+                    Math.Min(x, other.X) - GuidePad,
+                    Math.Max(x + w, other.X + ow) + GuidePad));
+        }
+
+        if (guideX != null) (guides ??= new List<AlignmentGuide>(2)).Add(guideX.Value);
+        if (guideY != null) (guides ??= new List<AlignmentGuide>(2)).Add(guideY.Value);
+
+        return new NodeSnapResult(snapX ?? x, snapY ?? y, guides ?? (IReadOnlyList<AlignmentGuide>)Array.Empty<AlignmentGuide>());
+    }
+
+    /// <summary>参考线在两端各延伸的长度（px），使线略微超出部件边缘便于观察。</summary>
+    private const double GuidePad = 10;
+
+    /// <summary>
+    /// 在"起点/中线/终点"三类对齐中找最近的候选：被拖部件位置 p（尺寸 s）对齐到参考部件位置 o（尺寸 os）。
+    /// 找到更近的候选即更新偏差、吸附坐标与参考线。
+    /// </summary>
+    private static void TryMatch(double p, double s, double o, double os,
+        ref double bestDelta, ref double? snap, ref AlignmentGuide? guide,
+        Func<double, AlignmentGuide> makeGuide)
+    {
+        // 三条候选线：前沿对齐、中线对齐、后沿对齐
+        Span<double> deltas = stackalloc double[3];
+        deltas[0] = o - p;                              // 左/上 对齐
+        deltas[1] = (o + os / 2) - (p + s / 2);         // 居中 对齐
+        deltas[2] = (o + os) - (p + s);                 // 右/下 对齐
+
+        for (int i = 0; i < 3; i++)
+        {
+            double d = Math.Abs(deltas[i]);
+            if (d > bestDelta) continue;
+
+            bestDelta = d;
+            snap = p + deltas[i];
+            double target = i switch { 0 => o, 1 => o + os / 2, _ => o + os };
+            guide = makeGuide(target);
+        }
+    }
+
     public ICommand SetDirectionCommand { get; }
     public ICommand DeleteSelectedConnectionCommand { get; }
     public ICommand DeleteSelectedCommand { get; }
@@ -197,7 +312,8 @@ public class DiagramViewModel : ObservableBase
         NodeViewModel sourceNode, PortViewModel sourcePort,
         NodeViewModel targetNode, PortViewModel targetPort,
         FlowMode direction = FlowMode.Forward, string? id = null,
-        PipeKind pipeKind = PipeKind.Standard)
+        PipeKind pipeKind = PipeKind.Standard,
+        PipeRouting routing = PipeRouting.Orthogonal)
     {
         var conn = new ConnectionViewModel(this, id)
         {
@@ -206,7 +322,8 @@ public class DiagramViewModel : ObservableBase
             TargetNode = targetNode,
             TargetPort = targetPort,
             Direction = direction,
-            PipeKind = pipeKind
+            PipeKind = pipeKind,
+            Routing = routing
         };
         conn.Number = NextNumber();
         IndexConnection(conn, null, null);
@@ -228,9 +345,10 @@ public class DiagramViewModel : ObservableBase
     /// <summary>添加一条两端均为自由点的管路，拖动端点即可吸附到部件端口。</summary>
     public ConnectionViewModel AddFreeConnection(
         Point start, Point end, FlowMode direction = FlowMode.Forward,
-        PipeKind pipeKind = PipeKind.Standard)
+        PipeKind pipeKind = PipeKind.Standard,
+        PipeRouting routing = PipeRouting.Orthogonal)
     {
-        var conn = new ConnectionViewModel(this) { Direction = direction, PipeKind = pipeKind };
+        var conn = new ConnectionViewModel(this) { Direction = direction, PipeKind = pipeKind, Routing = routing };
         conn.SetFreeEnd(true, start);
         conn.SetFreeEnd(false, end);
         conn.Number = NextNumber();
@@ -429,6 +547,24 @@ public class DiagramViewModel : ObservableBase
         SetSnapHighlight(null);
     }
 
+    // ---- 正交管路：拖动中间线段（水平段上下移 / 竖直段左右移） ----
+
+    /// <summary>开始拖动管路中间线段：记录拖动前的绕行位置，供 Esc 回退。</summary>
+    public void BeginConnectionSegmentDrag(ConnectionViewModel conn) => conn.BeginSegmentDrag();
+
+    /// <summary>
+    /// 拖动中间线段到指定坐标：<paramref name="horizontal"/> 为 true 表示水平段（按 Y 移动），
+    /// 否则为竖直段（按 X 移动）。仅正交布局生效。
+    /// </summary>
+    public void UpdateConnectionSegmentDrag(ConnectionViewModel conn, bool horizontal, double pos)
+        => conn.UpdateSegmentDrag(horizontal, pos);
+
+    /// <summary>结束段拖拽：提交当前绕行位置。</summary>
+    public void EndConnectionSegmentDrag(ConnectionViewModel conn) => conn.EndSegmentDrag();
+
+    /// <summary>取消段拖拽（Esc）：绕行位置回退到拖动前。</summary>
+    public void CancelConnectionSegmentDrag(ConnectionViewModel conn) => conn.CancelSegmentDrag();
+
     // ---- 序列化 ----
 
     public DiagramData ToData()
@@ -457,6 +593,9 @@ public class DiagramViewModel : ObservableBase
                 Number = c.Number,
                 Direction = c.Direction,
                 PipeKind = c.PipeKind,
+                Routing = c.Routing,
+                DetourX = c.DetourX,
+                DetourY = c.DetourY,
                 SourceNodeId = c.SourceNode?.Id,
                 SourcePortId = c.SourcePort?.Id,
                 TargetNodeId = c.TargetNode?.Id,
@@ -539,7 +678,14 @@ public class DiagramViewModel : ObservableBase
         {
             // 宿主尚未注册该类型（如换了宿主程序）时回退到内置普通管路，避免解析失败
             var pipeKind = PipeDefinitionRegistry.IsAvailable(cd.PipeKind) ? cd.PipeKind : PipeKind.Standard;
-            var conn = new ConnectionViewModel(this, cd.Id) { Direction = cd.Direction, PipeKind = pipeKind };
+            var conn = new ConnectionViewModel(this, cd.Id)
+            {
+                Direction = cd.Direction,
+                PipeKind = pipeKind,
+                Routing = cd.Routing,
+                DetourX = cd.DetourX,
+                DetourY = cd.DetourY
+            };
             conn.Number = cd.Number > 0 ? cd.Number : ++nextConnNumber;
 
             if (cd.SourceNodeId is { } snId && map.TryGetValue(snId, out var sn))

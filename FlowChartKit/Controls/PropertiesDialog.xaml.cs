@@ -115,6 +115,7 @@ public partial class PropertiesDialog : Window
         AddReadOnly("编号", $"#{connection.Number}");
         AddReadOnly("名称", connection.DisplayName);
         AddPipeKind(connection);
+        AddRouting(connection);
         AddDirection(connection);
         AddReadOnly("起点", DescribeEnd(connection.SourceNode, connection.SourcePort, connection.FreeSource));
         AddReadOnly("终点", DescribeEnd(connection.TargetNode, connection.TargetPort, connection.FreeTarget));
@@ -193,6 +194,44 @@ public partial class PropertiesDialog : Window
         };
 
         AddRow("管路类型", box);
+    }
+
+    /// <summary>
+    /// 连线布局下拉框：垂直水平（可拖中间线段调整绕行）/ 直线 / 弧线，
+    /// 选中即赋值 <see cref="ConnectionViewModel.Routing"/>，路径即时重算。
+    /// </summary>
+    private void AddRouting(ConnectionViewModel connection)
+    {
+        var box = new ComboBox { Padding = new Thickness(4, 3, 4, 3) };
+
+        foreach (var routing in new[] { PipeRouting.Orthogonal, PipeRouting.Straight, PipeRouting.Curved })
+        {
+            var item = new ComboBoxItem
+            {
+                Content = PipeRoutingDefaults.DisplayName(routing),
+                Tag = routing
+            };
+            box.Items.Add(item);
+            if (connection.Routing == routing) box.SelectedItem = item;
+        }
+
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedItem is ComboBoxItem { Tag: PipeRouting routing })
+                connection.Routing = routing;
+        };
+
+        AddRow("连线布局", box);
+
+        // 垂直水平布局才用得到绕行位置：复位后该管路回到"按端口方向自动走线"
+        var reset = new Button
+        {
+            Content = "复位为自动走线",
+            Padding = new Thickness(6, 3, 6, 3),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        reset.Click += (_, _) => connection.SetDetour(null, null);
+        AddRow("绕行位置", reset);
     }
 
     private void AddReadOnly(string name, string text)
