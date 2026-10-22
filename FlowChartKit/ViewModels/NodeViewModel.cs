@@ -25,7 +25,8 @@ public class NodeViewModel : ObservableBase
         Id = id ?? Guid.NewGuid().ToString("N");
         // 名称/尺寸/端口由该部件的定义自管理（见 NodeDefinitionRegistry）
         var def = NodeDefinitionRegistry.Resolve(kind);
-        _label = string.IsNullOrWhiteSpace(label) ? def.DisplayName : label!;
+        // 仅"未指定名称"（null）时回退到类型默认名；显式传入空字符串表示"该部件不显示名称"，予以保留
+        _label = label ?? def.DisplayName;
         (BaseWidth, BaseHeight) = def.BaseSize;
         _x = x;
         _y = y;

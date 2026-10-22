@@ -189,8 +189,8 @@ public partial class PropertiesDialog : Window
         void Commit()
         {
             string text = box.Text.Trim();
-            // 空白视为取消：回填原值。部件名称为空时载入会回退到类型默认名，留空没有意义
-            if (text.Length > 0) commit(text);
+            // 空串是合法值（如清空部件名称）：照常提交并回填
+            commit(text);
             box.Text = get();
         }
     }
