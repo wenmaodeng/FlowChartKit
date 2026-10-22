@@ -3,10 +3,10 @@ using FlowChartKit.Rendering;
 namespace FlowChartKit.Demo.Nodes;
 
 /// <summary>
-/// Demo 全部自定义部件的统一注册入口：App 启动与测试程序集初始化共用。
+/// 宿主全部自定义部件的统一注册入口：App 启动与测试程序集初始化共用。
 /// 幂等——重复调用直接跳过（注册表 Register 会覆盖，但保持"只注册一次"避免缓存反复失效）。
 /// </summary>
-public static class DemoNodeCatalog
+public static class HostNodeCatalog
 {
     private static bool _registered;
 

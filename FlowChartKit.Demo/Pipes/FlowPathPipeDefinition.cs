@@ -10,7 +10,7 @@ namespace FlowChartKit.Demo.Pipes;
 /// </summary>
 public sealed class FlowPathPipeDefinition : IPipeDefinition
 {
-    public PipeKind Kind => DemoPipeKinds.FlowPath;
+    public PipeKind Kind => HostPipeKinds.FlowPath;
     public string DisplayName => "流路";
 
     public Brush Stroke { get; } = NodeRenderer.Frozen(0x31, 0x61, 0xFF);

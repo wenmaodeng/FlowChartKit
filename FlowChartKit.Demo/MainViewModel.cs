@@ -160,7 +160,7 @@ public class MainViewModel : ObservableBase
                 PipeDefinitionRegistry.IsBuiltIn(d.Kind) ? d.DisplayName : $"{d.DisplayName}（扩展）"))
             .ToList();
 
-    private PipeKind _selectedPipeKind = DemoPipeKinds.FlowPath;
+    private PipeKind _selectedPipeKind = HostPipeKinds.FlowPath;
     /// <summary>要应用到选中管路的类型（测试单条管路切换类型后颜色/粗细/动画即时变化）。</summary>
     public PipeKind SelectedPipeKind
     {
@@ -253,7 +253,7 @@ public class MainViewModel : ObservableBase
         (PipeKind Kind, FlowMode Direction)[] rows =
         [
             (PipeKind.Standard, FlowMode.Forward),
-            (DemoPipeKinds.FlowPath, FlowMode.Forward),
+            (HostPipeKinds.FlowPath, FlowMode.Forward),
         ];
 
         foreach (var (kind, direction) in rows)
@@ -271,7 +271,7 @@ public class MainViewModel : ObservableBase
         if (d is null) { StatusText = "画布未就绪"; return; }
 
         // label 传空串 = 该部件不显示名称（传 null 才会回退到类型默认名）
-        var node = d.AddNode(DemoNodeKinds.SyringePump, 560, 80, label: "");
+        var node = d.AddNode(HostNodeKinds.SyringePump, 560, 80, label: "");
         StatusText = $"已添加无名称注射泵（Id={node.Id}）；属性对话框可再填回名称";
     }
 

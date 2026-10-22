@@ -63,8 +63,8 @@ public class NodeDefinitionTests
     public void RegisteredDefinitions_RenderWithNodeContext_WithoutException()
     {
         // 二参 DIM 默认委托一参实现：未 override 状态外观的定义经上下文调用必须照常渲染
-        var node = new NodeViewModel(DemoNodeKinds.SyringePump) { State = "任意宿主载荷" };
-        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump);
+        var node = new NodeViewModel(HostNodeKinds.SyringePump) { State = "任意宿主载荷" };
+        var def = NodeDefinitionRegistry.Resolve(HostNodeKinds.SyringePump);
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -92,7 +92,7 @@ public class NodeDefinitionTests
     [Fact]
     public void SyringePump_HasSixteenPorts_FourPerSide()
     {
-        var node = new NodeViewModel(DemoNodeKinds.SyringePump);
+        var node = new NodeViewModel(HostNodeKinds.SyringePump);
 
         Assert.Equal("注射泵", node.Label);
         Assert.Equal(16, node.Ports.Count);
@@ -223,7 +223,7 @@ public class NodeDefinitionTests
     public void Events_DefaultInterfaceImplementation_IsEmptyCatalog()
     {
         // 未声明 Events 的定义走默认接口实现：空目录 = 未启用事件目录（默认单击语义）
-        Assert.Empty(NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump).Events);
+        Assert.Empty(NodeDefinitionRegistry.Resolve(HostNodeKinds.SyringePump).Events);
     }
 
     [Fact]
@@ -379,8 +379,8 @@ public class NodeDefinitionTests
     public void BuiltInDefinitions_InvokeEvent_DefaultNotConsumed()
     {
         // 未实现内置手势处理的定义（DIM 默认）：调用返回 false，事件照常上抛宿主
-        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump);
-        var node = new NodeViewModel(DemoNodeKinds.SyringePump);
+        var def = NodeDefinitionRegistry.Resolve(HostNodeKinds.SyringePump);
+        var node = new NodeViewModel(HostNodeKinds.SyringePump);
         Assert.False(def.InvokeEvent(node, NodeEventGesture.Click, "Any"));
         Assert.False(def.InvokeEvent(node, NodeEventGesture.DoubleClick, "Any"));
     }

@@ -35,7 +35,7 @@ public sealed class SyringePumpDefinition : INodeDefinition
         "M 54.5 106.389 V 99.6111 L 57.5 99.6111 V 106.389 Z",
     ];
 
-    public NodeKind Kind => DemoNodeKinds.SyringePump;
+    public NodeKind Kind => HostNodeKinds.SyringePump;
     public string DisplayName => "注射泵";
     public (double W, double H) BaseSize => (72, 281);
 

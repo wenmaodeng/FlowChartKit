@@ -127,7 +127,7 @@ public class AllowNodeInteractionTests
             {
                 canvas.Diagram.IsEditable = false; // 运行模式
                 // 注射泵无事件目录：走默认单击语义上抛（EventId=null）
-                var cup = canvas.Diagram.AddNode(DemoNodeKinds.SyringePump, 100, 100);
+                var cup = canvas.Diagram.AddNode(HostNodeKinds.SyringePump, 100, 100);
                 canvas.UpdateLayout();
                 var nodeCtrl = FindDescendant<FlowNodeControl>(canvas)
                     ?? throw new InvalidOperationException("容器未生成：可视树中未找到 FlowNodeControl");

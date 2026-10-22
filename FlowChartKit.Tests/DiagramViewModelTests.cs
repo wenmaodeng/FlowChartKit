@@ -227,7 +227,7 @@ public class DiagramViewModelTests
         Assert.Same(c1, d.FindNode(NodeKind.Led, 1));
         Assert.Same(c2, d.FindNode(NodeKind.Led, 2));
         Assert.Null(d.FindNode(NodeKind.Led, 3));   // 序号不存在
-        Assert.Null(d.FindNode(DemoNodeKinds.SyringePump, 1));  // 类型不存在（图中未添加注射泵）
+        Assert.Null(d.FindNode(HostNodeKinds.SyringePump, 1));  // 类型不存在（图中未添加注射泵）
     }
 
     [Fact]
