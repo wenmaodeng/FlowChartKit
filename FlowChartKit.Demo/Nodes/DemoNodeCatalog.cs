@@ -26,5 +26,6 @@ public static class DemoNodeCatalog
         NodeDefinitionRegistry.Register(new ThreeWayValveDefinition());
         NodeDefinitionRegistry.Register(new PumpModuleDefinition());
         NodeDefinitionRegistry.Register(new SolenoidValveDefinition());
+        NodeDefinitionRegistry.Register(new SyringePumpDefinition());
     }
 }

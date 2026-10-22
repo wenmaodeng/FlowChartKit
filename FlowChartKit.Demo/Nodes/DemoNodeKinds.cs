@@ -18,4 +18,5 @@ public static class DemoNodeKinds
     public const NodeKind PumpModule    = (NodeKind)1007;    // 注射泵 + 多通阀
     public const NodeKind ThreeWayValve = (NodeKind)1008;    // 三通阀
     public const NodeKind SolenoidValve = (NodeKind)1009; // 电磁阀
+    public const NodeKind SyringePump   = (NodeKind)1010; // 注射泵（四边各 4 端口）
 }

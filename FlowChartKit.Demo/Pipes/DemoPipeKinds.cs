@@ -11,4 +11,5 @@ public static class DemoPipeKinds
     public const PipeKind Steam = (PipeKind)1000;    // 蒸汽管：粗红线、快流动
     public const PipeKind Waste = (PipeKind)1001;    // 废液管：灰色、不流动
     public const PipeKind Sample = (PipeKind)1002;   // 采样管：细绿线、慢流动
+    public const PipeKind FlowPath = (PipeKind)1003; // 流路：2px #3161FF 蓝线
 }

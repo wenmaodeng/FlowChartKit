@@ -18,5 +18,6 @@ public static class DemoPipeCatalog
         PipeDefinitionRegistry.Register(new SteamPipeDefinition());
         PipeDefinitionRegistry.Register(new WastePipeDefinition());
         PipeDefinitionRegistry.Register(new SamplePipeDefinition());
+        PipeDefinitionRegistry.Register(new FlowPathPipeDefinition());
     }
 }
