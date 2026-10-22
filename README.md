@@ -1,6 +1,6 @@
 # FlowChartKit
 
-WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管路 + 流向的编辑与运行双模式画布。全部图形经 C# `OnRender` 矢量自绘，高 DPI 下清晰，无 ControlTemplate 依赖。
+WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管路 + 文本 + 流向的编辑与运行双模式画布。全部图形经 C# `OnRender` 矢量自绘，高 DPI 下清晰，无 ControlTemplate 依赖。
 
 ![FlowChartKit 效果预览](https://raw.githubusercontent.com/wenmaodeng/FlowChartKit/main/demo.png)
 
@@ -10,13 +10,15 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 - **内置部件**：LED 指示灯（四色循环）、开关（通/断），支持双击自切换与程序化状态下发
 - **宿主扩展**：业务部件类型由宿主常量定义（数值落盘），实现一个 `INodeDefinition` + 一次注册即可入画布与右键菜单（见下文三通阀示例）
 - **自适应画布**：`AutoFitCanvas` 默认开启，画布尺寸自动跟随控件可视区，无水平/垂直滚动条；关闭则按存档尺寸显示并可滚动
-- **管路系统**：端口吸附、自由端、流向与流动画；连线布局可选「垂直水平（正交，可拖动中间线段调整绕行）/ 直线 / 弧线」（`PipeRouting`），与管路样式独立组合
-- **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附；拖动管路线段时与**其它管路**的水平 / 竖直段共线对齐，均显示橙色捕捉线
+- **管路系统**：端口吸附、自由端、流向与流动画；连线布局可选「垂直水平（正交，可拖动中间线段调整绕行）/ 直线 / 弧线」（`PipeRouting`），与管路样式独立组合；正交拐角自动加圆角（半径按段长钳制）
+- **文本模块**：与部件 / 管路平级的第三种画布元素，有编号、内容与字号，可拖动，随存档持久化（见下文章节）
+- **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附；拖动管路线段时与该管路**自身**及其它管路的水平 / 竖直段共线对齐，均显示橙色捕捉线；可随时开关（`AlignmentSnapEnabled`），拖动中**按住 Alt** 可临时关闭
+- **拖动时显示边距**：拖动部件时四周实时显示到画布上 / 下 / 左 / 右边界的距离（px）
 - **部件缩放与标签字号**：选中（或悬停）部件后，按住**右下角**手柄拖动即等比缩放（`NodeViewModel.Scale`，0.2~5 倍）；部件名称字号可逐件设置（`LabelFontSize`，6~48，随存档持久化）
-- **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）
+- **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）；颜色还可按流向区分（有流向用 `Stroke`、停止用 `StoppedStroke`，内置普通管路即 #3161FF / #B1C4FF）
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
-- **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` 按编号下发，`NodeClickCommand` 上抛
-- **布局存档**：JSON 序列化带版本字段，载入前预校验、失败时画布状态一致
+- **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` / `SetTextByNumberCommand` 按编号下发（参数 `SetDirectionRequest` / `SetNodeStateRequest` / `SetTextRequest`，结果回填 `Result`），`NodeClickCommand` 上抛
+- **布局存档**：JSON 序列化带版本字段，载入前预校验、失败时画布状态一致；文本模块一并持久化
 - **现场控制**：`AllowContextMenu` / `AllowNodeInteraction` 独立开关，坐标全入口钳位，键盘支持（Delete / 方向键 / Esc）
 
 ## 安装
@@ -143,6 +145,10 @@ public sealed class SteamPipeDefinition : IPipeDefinition
     public Brush SelectedStroke { get; } = NodeRenderer.Frozen(0xFF, 0x8A, 0x00);
     public double SelectedThickness => 4.0;
 
+    // 可选：流向为"停止"时的颜色与线宽（不重写则沿用 Stroke / Thickness）
+    public Brush? StoppedStroke { get; } = NodeRenderer.Frozen(0xE8, 0xB4, 0xA8);
+    public double StoppedThickness => 3.0;
+
     // 虚线图案 {6,3}、0.3s 一个循环（比默认更快、更长的虚线段）
     public PipeFlowSpec Flow { get; } = PipeFlowSpec.Create([6, 3], TimeSpan.FromSeconds(0.3));
 }
@@ -193,7 +199,7 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 
 | 布局 | 说明 |
 |---|---|
-| `PipeRouting.Orthogonal`（默认） | 垂直水平：横平竖直折线 + 端口出线短直段，可拖动中间线段调整绕行 |
+| `PipeRouting.Orthogonal`（默认） | 垂直水平：横平竖直折线 + 端口出线短直段，可拖动中间线段调整绕行；**拐角自动加圆角**（目标半径 10px，钳到相邻段长的一半，段越短圆角越小） |
 | `PipeRouting.Straight` | 直线：两端点直接连线（可能穿过部件） |
 | `PipeRouting.Curved` | 弧线：三次贝塞尔，端口处切线方向与端口朝向一致 |
 
@@ -217,12 +223,54 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 
 | 开关 | 说明 |
 |---|---|
-| `AlignmentSnapEnabled` | 默认 `true`；设为 `false` 恢复自由拖动，不再生成捕捉线 |
+| `AlignmentSnapEnabled` | 默认 `true`；设为 `false` 恢复自由拖动，不再生成捕捉线（右键菜单「对齐吸附」可在运行中切换） |
 | `AlignmentSnapDistance` | 默认 `6`px，进入该距离即吸附 |
+| 按住 **Alt** | 拖动部件 / 管路线段时临时关闭本次拖动的吸附（像素级精细调整），不影响上面的配置 |
 
-**管路**：拖动正交管路的线段时，与**其它管路的水平 / 竖直段**共线对齐（不考虑部件）——水平段按 Y 吸附、竖直段按 X 吸附，被拖管路自身不参与。命中时显示对应的捕捉线（水平段横线、竖直段竖线，跨度覆盖两条管路的并集范围）。
+**管路**：拖动正交管路的线段时，与**自身其它水平 / 竖直段**及**其它管路**的同类段共线对齐（不考虑部件）——水平段按 Y 吸附、竖直段按 X 吸附；正在拖动的那一段自动排除（跟随鼠标，参与会自吸附成零偏差）。可与自己的起始段 / 结束段齐平，从而把 Z 形拉成 L 形。命中时显示对应的捕捉线（水平段横线、竖直段竖线，跨度覆盖两条管路的并集范围）。
+
+**拖动部件时的边距读数**：显示到画布上 / 下 / 左 / 右四边的距离（px），`DiagramViewModel.GetNodeMargins(node)` 可单独取到同样的四向距离。
 
 代码侧：`DiagramViewModel.SnapNode(node, x, y)`（部件）与 `SnapConnectionSegment(conn, horizontal, pos)`（管路段）返回吸附后坐标与参考线集合（`AlignmentGuide`），当前参考线见 `DiagramViewModel.AlignmentGuides`，由画布的对齐线图层绘制（不参与命中测试）；拖动结束或退出编辑模式会自动清空。
+
+## 文本模块
+
+与部件、管路平级的第三种画布元素：一块可拖动的文字（标题、注释、工位说明等），有**编号**、**内容**与**字号**，随布局存档持久化。
+
+| 场景 | 做法 |
+|---|---|
+| 添加 | 编辑模式下右键画布空白处 →「添加文本模块」（落在该右键位置） |
+| 编辑内容 / 字号 / 位置 | 右键文本 →「属性」（内容回车或失焦即提交，画布即时刷新） |
+| 移动 | 编辑模式下直接拖动（按住 **Alt** 不影响，文本不参与对齐吸附） |
+| 删除 | 选中后按 Delete，或右键文本 →「删除文本」 |
+| 层级 | 管路之上、部件之下（左键 / 右键命中优先级低于部件） |
+
+选中态显示橙色虚线框；编辑模式且开启编号显示（`ShowNumbers`）时，文本左上角显示与管路同风格的**编号徽章**。
+
+```csharp
+// 代码创建与按编号修改
+var text = diagram.AddTextItem(x: 120, y: 60, content: "1 号工位", fontSize: 16);
+diagram.SetTextContent(text.Number, "运行中");     // 返回 false 表示编号不存在
+var found = diagram.FindTextBlock(text.Number);
+diagram.RemoveTextItem(text);
+```
+
+宿主按编号改文本（不引用控件类型，同 `SetDirectionByNumberCommand`）：
+
+```xml
+<fc:DiagramCanvasControl SetTextByNumberCommand="{Binding SetTextCommand, Mode=OneWayToSource}" />
+```
+
+```csharp
+// 宿主 VM：控件 Loaded 时灌入命令，VM 只认 ICommand
+public ICommand? SetTextCommand { get; set; }
+
+var request = new SetTextRequest(1, "运行中");
+SetTextCommand?.Execute(request);
+// request.Result：true=已修改 / false=编号不存在 / null=未执行
+```
+
+存档中对应 `Texts` 段（`TextBlockData`：Id / Number / X / Y / Content / FontSize，字号默认 14、钳制 6~48）；旧存档无该字段按空表回读，无需版本迁移。
 
 ## 文档
 
