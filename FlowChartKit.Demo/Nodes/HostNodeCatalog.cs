@@ -16,5 +16,15 @@ public static class HostNodeCatalog
         _registered = true;
 
         NodeDefinitionRegistry.Register(new SyringePumpDefinition());
+        NodeDefinitionRegistry.Register(new PureWaterBucketDefinition());
+        NodeDefinitionRegistry.Register(new WasteBucketDefinition());
+        NodeDefinitionRegistry.Register(new SampleSlotDefinition());
+        NodeDefinitionRegistry.Register(new WashSlotDefinition());
+        NodeDefinitionRegistry.Register(new Cuvette1CmDefinition());
+        NodeDefinitionRegistry.Register(new Cuvette3CmDefinition());
+        NodeDefinitionRegistry.Register(new ReagentBottleDefinition());
+        NodeDefinitionRegistry.Register(new ExhaustValveDefinition());
+        NodeDefinitionRegistry.Register(new DigestionPotDefinition());
+        NodeDefinitionRegistry.Register(new WaterPumpDefinition());
     }
 }
