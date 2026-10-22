@@ -105,12 +105,14 @@ public static class NodeRenderer
         return s_roundRectCache.GetOrAdd(key, geo);
     }
 
-    /// <summary>按 SVG 风格路径数据绘制几何；路径解析结果按 data 缓存并冻结，重复渲染零开销。</summary>
-    public static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen pen)
+    /// <summary>按 SVG 风格路径数据绘制几何；路径解析结果按 data 缓存并冻结，重复渲染零开销。
+    /// <paramref name="fill"/> 与 <paramref name="pen"/> 均可为 null（与 <see cref="DrawingContext.DrawGeometry"/> 一致：只填充或只描边）。</summary>
+    public static void DrawPath(DrawingContext dc, string data, Brush? fill, Pen? pen)
         => dc.DrawGeometry(fill, pen, CachedPath(data));
 
-    /// <summary>绘制圆角矩形；按 (x,y,w,h,r) 缓存并冻结，供自定义部件的底座、面板等复用。</summary>
-    public static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen pen)
+    /// <summary>绘制圆角矩形；按 (x,y,w,h,r) 缓存并冻结，供自定义部件的底座、面板等复用。
+    /// <paramref name="fill"/> 与 <paramref name="pen"/> 均可为 null。</summary>
+    public static void DrawRoundRect(DrawingContext dc, double x, double y, double w, double h, double r, Brush? fill, Pen? pen)
         => dc.DrawGeometry(fill, pen, CachedRoundRect(x, y, w, h, r));
 
     /// <summary>把短文本一次性转成矢量轮廓并冻结：分辨率无关（高 DPI 不糊），供各定义静态缓存复用。</summary>
