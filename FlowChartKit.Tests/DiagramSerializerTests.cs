@@ -15,8 +15,8 @@ public class DiagramSerializerTests
     public void JsonRoundTrip_PreservesTopology()
     {
         var d = new DiagramViewModel(800, 600);
-        var a = d.AddNode(DemoNodeKinds.PumpModule, 100, 100, "泵");
-        var b = d.AddNode(DemoNodeKinds.SampleCup, 300, 200, "杯");
+        var a = d.AddNode(NodeKind.Switch, 100, 100, "泵");
+        var b = d.AddNode(NodeKind.Led, 300, 200, "杯");
         var conn = d.AddConnection(a, a.Ports[0], b, b.Ports[1], FlowMode.Reverse);
         d.AddFreeConnection(new Point(10, 20), new Point(30, 40), FlowMode.None);
 
@@ -97,7 +97,7 @@ public class DiagramSerializerTests
     public void SaveLoad_FileRoundTrip()
     {
         var d = new DiagramViewModel(640, 480);
-        d.AddNode(DemoNodeKinds.ReagentBottle, 50, 60, "试剂");
+        d.AddNode(NodeKind.Led, 50, 60, "试剂");
 
         var path = Path.Combine(Path.GetTempPath(), $"flowchart-test-{Guid.NewGuid():N}.json");
         try

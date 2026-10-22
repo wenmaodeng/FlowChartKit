@@ -85,16 +85,16 @@ public class KeyboardAndHitTestTests
         RunOnSta(() =>
         {
             var d = new DiagramViewModel(800, 600);
-            var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
+            var node = d.AddNode(NodeKind.Led, 100, 100);
             var conn = d.AddFreeConnection(new Point(60, 60), new Point(250, 150));
-            conn.SetEnd(true, node, d.FindPort(node, "L")!); // 起点吸附到左端口，画布坐标 (100,132)
+            conn.SetEnd(true, node, d.FindPort(node, "L")!); // 起点吸附到左端口，画布坐标 (100,116)
 
             var ctrl = new TestFlowNodeControl { DataContext = node };
 
-            // 端口处（控件相对 (0,32) = 画布 (100,132)）让位给管路层，否则边界端点抓不住
-            Assert.Null(ctrl.HitTest(new Point(0, 32)));
+            // 端口处（控件相对 (0,16) = 画布 (100,116)）让位给管路层，否则边界端点抓不住
+            Assert.Null(ctrl.HitTest(new Point(0, 16)));
             // 远离端点的图形内部仍归部件所有
-            Assert.NotNull(ctrl.HitTest(new Point(23, 32)));
+            Assert.NotNull(ctrl.HitTest(new Point(16, 16)));
         });
     }
 
@@ -104,14 +104,14 @@ public class KeyboardAndHitTestTests
         RunOnSta(() =>
         {
             var d = new DiagramViewModel(800, 600);
-            var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
-            // 自由端 (122,130) 落在部件体内部、且不靠近任何端口（距左端口约 22px > 12px）
-            var conn = d.AddFreeConnection(new Point(250, 150), new Point(122, 130));
+            var node = d.AddNode(NodeKind.Led, 100, 100);
+            // 自由端 (116,116) 落在部件体内部、且不靠近任何端口（距四边端口各 16px > 12px）
+            var conn = d.AddFreeConnection(new Point(250, 150), new Point(116, 116));
 
             var ctrl = new TestFlowNodeControl { DataContext = node };
 
-            // 自由端（控件相对 (22,30)）必须让位给管路层，否则大部件体下的自由端永远抓不住
-            Assert.Null(ctrl.HitTest(new Point(22, 30)));
+            // 自由端（控件相对 (16,16)）必须让位给管路层，否则大部件体下的自由端永远抓不住
+            Assert.Null(ctrl.HitTest(new Point(16, 16)));
         });
     }
 
@@ -128,7 +128,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = new DiagramViewModel(800, 600);
-                var node = d.AddNode(DemoNodeKinds.SampleCup, 200, 200);
+                var node = d.AddNode(NodeKind.Led, 200, 200);
                 var port = d.FindPort(node, "L")!;
                 var conn = d.AddFreeConnection(new Point(60, 60), new Point(250, 150));
                 conn.SetEnd(false, node, port);
@@ -190,7 +190,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = canvas.Diagram;
-                var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
+                var node = d.AddNode(NodeKind.Led, 100, 100);
                 d.SelectedNode = node;
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Delete));
@@ -211,7 +211,7 @@ public class KeyboardAndHitTestTests
             window.Show();
             try
             {
-                canvas.PendingNodeKind = DemoNodeKinds.SampleCup; // 进入放置模式（变更回调会落焦点；未激活窗口无法取键盘焦点，不在此断言）
+                canvas.PendingNodeKind = NodeKind.Led; // 进入放置模式（变更回调会落焦点；未激活窗口无法取键盘焦点，不在此断言）
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Escape));
 
@@ -233,7 +233,7 @@ public class KeyboardAndHitTestTests
             try
             {
                 var d = canvas.Diagram;
-                var node = d.AddNode(DemoNodeKinds.SampleCup, 100, 100);
+                var node = d.AddNode(NodeKind.Led, 100, 100);
                 d.SelectedNode = node;
 
                 canvas.RaiseEvent(KeyArgs(window, Key.Right));

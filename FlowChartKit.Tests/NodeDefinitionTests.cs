@@ -63,8 +63,8 @@ public class NodeDefinitionTests
     public void RegisteredDefinitions_RenderWithNodeContext_WithoutException()
     {
         // 二参 DIM 默认委托一参实现：未 override 状态外观的定义经上下文调用必须照常渲染
-        var node = new NodeViewModel(DemoNodeKinds.SampleCup) { State = "任意宿主载荷" };
-        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup);
+        var node = new NodeViewModel(DemoNodeKinds.SyringePump) { State = "任意宿主载荷" };
+        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump);
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -90,23 +90,20 @@ public class NodeDefinitionTests
     }
 
     [Fact]
-    public void ThreeWayValve_HasThreePorts()
+    public void SyringePump_HasSixteenPorts_FourPerSide()
     {
-        var node = new NodeViewModel(DemoNodeKinds.ThreeWayValve);
+        var node = new NodeViewModel(DemoNodeKinds.SyringePump);
 
-        Assert.Equal("三通阀", node.Label);
-        Assert.Equal(3, node.Ports.Count);
-        Assert.Equal(["L", "R", "B"], node.Ports.Select(p => p.Id).ToArray());
-        Assert.Equal([PortDir.Left, PortDir.Right, PortDir.Down], node.Ports.Select(p => p.Dir).ToArray());
-    }
-
-    [Fact]
-    public void PumpModule_HasNineDedicatedPorts()
-    {
-        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.PumpModule);
-        Assert.Equal(9, def.Ports.Count);
-        Assert.Equal(["T", "L1", "L2", "R1", "R2", "B1", "B2", "B3", "B4"],
-            def.Ports.Select(p => p.Id).ToArray());
+        Assert.Equal("注射泵", node.Label);
+        Assert.Equal(16, node.Ports.Count);
+        Assert.Equal(["T1", "T2", "T3", "T4", "B1", "B2", "B3", "B4",
+                      "L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"],
+            node.Ports.Select(p => p.Id).ToArray());
+        // 每边 4 个端口，朝向与所在边一致
+        Assert.Equal(4, node.Ports.Count(p => p.Dir == PortDir.Up));
+        Assert.Equal(4, node.Ports.Count(p => p.Dir == PortDir.Down));
+        Assert.Equal(4, node.Ports.Count(p => p.Dir == PortDir.Left));
+        Assert.Equal(4, node.Ports.Count(p => p.Dir == PortDir.Right));
     }
 
     [Fact]
@@ -184,10 +181,10 @@ public class NodeDefinitionTests
     [Fact]
     public void All_MergesBuiltInsAndOverrides()
     {
-        // 初态 = 内置 Led + Demo 注册的覆盖层定义（含枚举外的电磁阀）
+        // 初态 = 内置 Led + Demo 注册的覆盖层定义（含枚举外的注射泵）
         var initialCount = NodeDefinitionRegistry.All.Count;
 
-        var customKind = (NodeKind)5001; // 远离 Demo 扩展区(1000-1009)的未注册类型
+        var customKind = (NodeKind)5001; // 远离 Demo 扩展区(1010)的未注册类型
         var custom = new TestDefinition(customKind, "自定义", (10, 10),
             [new PortSpec("X", 0.5, 0.5, PortDir.Up)]);
         var ledOverride = new TestDefinition(NodeKind.Led, "覆盖灯", (10, 10),
@@ -226,7 +223,7 @@ public class NodeDefinitionTests
     public void Events_DefaultInterfaceImplementation_IsEmptyCatalog()
     {
         // 未声明 Events 的定义走默认接口实现：空目录 = 未启用事件目录（默认单击语义）
-        Assert.Empty(NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup).Events);
+        Assert.Empty(NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump).Events);
     }
 
     [Fact]
@@ -382,8 +379,8 @@ public class NodeDefinitionTests
     public void BuiltInDefinitions_InvokeEvent_DefaultNotConsumed()
     {
         // 未实现内置手势处理的定义（DIM 默认）：调用返回 false，事件照常上抛宿主
-        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SampleCup);
-        var node = new NodeViewModel(DemoNodeKinds.SampleCup);
+        var def = NodeDefinitionRegistry.Resolve(DemoNodeKinds.SyringePump);
+        var node = new NodeViewModel(DemoNodeKinds.SyringePump);
         Assert.False(def.InvokeEvent(node, NodeEventGesture.Click, "Any"));
         Assert.False(def.InvokeEvent(node, NodeEventGesture.DoubleClick, "Any"));
     }

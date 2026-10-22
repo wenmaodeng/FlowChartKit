@@ -15,9 +15,6 @@ public static class DemoPipeCatalog
         if (_registered) return;
         _registered = true;
 
-        PipeDefinitionRegistry.Register(new SteamPipeDefinition());
-        PipeDefinitionRegistry.Register(new WastePipeDefinition());
-        PipeDefinitionRegistry.Register(new SamplePipeDefinition());
         PipeDefinitionRegistry.Register(new FlowPathPipeDefinition());
     }
 }

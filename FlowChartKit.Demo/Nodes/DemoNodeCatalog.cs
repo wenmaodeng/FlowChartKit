@@ -1,4 +1,3 @@
-using FlowChartKit.Data;
 using FlowChartKit.Rendering;
 
 namespace FlowChartKit.Demo.Nodes;
@@ -16,16 +15,6 @@ public static class DemoNodeCatalog
         if (_registered) return;
         _registered = true;
 
-        NodeDefinitionRegistry.Register(new SampleCupDefinition());
-        NodeDefinitionRegistry.Register(new ReagentBottleDefinition());
-        NodeDefinitionRegistry.Register(new WasteDefinition());
-        NodeDefinitionRegistry.Register(new ReactionCupDefinition());
-        NodeDefinitionRegistry.Register(new CuvetteDefinition());
-        NodeDefinitionRegistry.Register(new CentrifugeDefinition());
-        NodeDefinitionRegistry.Register(new NeedleWashDefinition());
-        NodeDefinitionRegistry.Register(new ThreeWayValveDefinition());
-        NodeDefinitionRegistry.Register(new PumpModuleDefinition());
-        NodeDefinitionRegistry.Register(new SolenoidValveDefinition());
         NodeDefinitionRegistry.Register(new SyringePumpDefinition());
     }
 }

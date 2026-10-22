@@ -51,11 +51,11 @@ public class MainViewModel : ObservableBase
             if (p is not NodeClickEventArgs args) return;
             var node = args.Node;
 
-            // 事件目录语义分发示例：双击电磁阀切换开关状态（写回 State，属性对话框会实时刷新）
+            // 事件目录语义分发示例：双击带 ToggleState 事件的部件切换开关状态（写回 State，属性对话框会实时刷新）
             if (args.EventId == "ToggleState")
             {
                 node.State = node.State as string is "开" ? "关" : "开";
-                StatusText = $"电磁阀 #{node.KindNumber} 已切换为 {node.State}";
+                StatusText = $"部件 #{node.KindNumber} 已切换为 {node.State}";
                 return;
             }
 
@@ -160,7 +160,7 @@ public class MainViewModel : ObservableBase
                 PipeDefinitionRegistry.IsBuiltIn(d.Kind) ? d.DisplayName : $"{d.DisplayName}（扩展）"))
             .ToList();
 
-    private PipeKind _selectedPipeKind = DemoPipeKinds.Steam;
+    private PipeKind _selectedPipeKind = DemoPipeKinds.FlowPath;
     /// <summary>要应用到选中管路的类型（测试单条管路切换类型后颜色/粗细/动画即时变化）。</summary>
     public PipeKind SelectedPipeKind
     {
@@ -179,7 +179,7 @@ public class MainViewModel : ObservableBase
     /// <summary>把 <see cref="SelectedPipeKind"/> 应用到当前选中的管路。</summary>
     public RelayCommand ApplyPipeKindCommand { get; }
 
-    /// <summary>生成四条不同类型的管路，便于直观对比颜色/粗细/流动画。</summary>
+    /// <summary>生成内置与宿主扩展两类管路，便于直观对比颜色/粗细/流动画。</summary>
     public RelayCommand BuildPipeDemoCommand { get; }
 
     /// <summary>添加一个名称为空的部件，验证"名称允许为空"。</summary>
@@ -249,13 +249,11 @@ public class MainViewModel : ObservableBase
         double y = 90;
         double x2 = Math.Max(220, Math.Min(460, d.CanvasWidth - 80));
 
-        // 内置 + 三种宿主扩展：粗快（蒸汽）/ 不流动（废液）/ 细慢且反向（采样）
+        // 内置 + 宿主扩展（流路）：对比颜色/粗细/流动画
         (PipeKind Kind, FlowMode Direction)[] rows =
         [
             (PipeKind.Standard, FlowMode.Forward),
-            (DemoPipeKinds.Steam, FlowMode.Forward),
-            (DemoPipeKinds.Waste, FlowMode.Forward),
-            (DemoPipeKinds.Sample, FlowMode.Reverse),
+            (DemoPipeKinds.FlowPath, FlowMode.Forward),
         ];
 
         foreach (var (kind, direction) in rows)
@@ -264,7 +262,7 @@ public class MainViewModel : ObservableBase
             y += 70;
         }
 
-        StatusText = "已生成：普通 / 蒸汽(粗·快) / 废液(不流动) / 采样(细·慢·反向)";
+        StatusText = "已生成：普通 / 流路（扩展）";
     }
 
     private void AddNamelessNode()
@@ -273,8 +271,8 @@ public class MainViewModel : ObservableBase
         if (d is null) { StatusText = "画布未就绪"; return; }
 
         // label 传空串 = 该部件不显示名称（传 null 才会回退到类型默认名）
-        var node = d.AddNode(DemoNodeKinds.ThreeWayValve, 560, 80, label: "");
-        StatusText = $"已添加无名称三通阀（Id={node.Id}）；属性对话框可再填回名称";
+        var node = d.AddNode(DemoNodeKinds.SyringePump, 560, 80, label: "");
+        StatusText = $"已添加无名称注射泵（Id={node.Id}）；属性对话框可再填回名称";
     }
 
     private void ExecuteSetLedState()
