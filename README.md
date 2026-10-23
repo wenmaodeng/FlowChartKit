@@ -14,11 +14,12 @@ WPF 流程图控件库，面向工业上位机/设备组态场景：部件 + 管
 - **文本模块**：与部件 / 管路平级的第三种画布元素，有编号、内容与字号，可拖动，随存档持久化（见下文章节）
 - **拖动对齐吸附**：拖动部件靠近其它部件的左/右/居中、上/下/居中时自动吸附；拖动管路线段时与该管路**自身**及其它管路的水平 / 竖直段共线对齐，均显示橙色捕捉线；可随时开关（`AlignmentSnapEnabled`），拖动中**按住 Alt** 可临时关闭
 - **拖动时显示边距**：拖动部件时四周实时显示到画布上 / 下 / 左 / 右边界的距离（px）
-- **部件缩放与标签字号**：选中（或悬停）部件后，按住**右下角**手柄拖动即等比缩放（`NodeViewModel.Scale`，0.2~5 倍）；部件名称字号可逐件设置（`LabelFontSize`，6~48，随存档持久化）
+- **部件缩放与标签字号**：选中（或悬停）部件后，按住**右下角**手柄拖动即等比缩放，**右侧**手柄只改宽、**下方**手柄只改高（不保持宽高比，`NodeViewModel.ScaleX` / `ScaleY`，各 0.2~5 倍）；部件名称字号可逐件设置（`LabelFontSize`，6~48，随存档持久化）
 - **管路样式可扩展**：颜色、粗细、流动画（虚线图案/速度/是否流动）由 `IPipeDefinition` 提供，经 `PipeDefinitionRegistry` 注册（内置普通管路 + 宿主扩展），可分"内置/扩展"两类并逐条切换（见下文蒸汽管示例）；颜色还可按流向区分（有流向用 `Stroke`、停止用 `StoppedStroke`，内置普通管路即 #3161FF / #B1C4FF）
 - **编辑/运行双模式**：`IsEditable` 切换；运行模式点击经 `NodeClickCommand` 上抛宿主 VM（零控件引用）
 - **命令桥双向**：`SetDirectionByNumberCommand` / `SetNodeStateByNumberCommand` / `SetTextByNumberCommand` 按编号下发（参数 `SetDirectionRequest` / `SetNodeStateRequest` / `SetTextRequest`，结果回填 `Result`），`NodeClickCommand` 上抛
-- **布局存档**：JSON 序列化带版本字段，载入前预校验、失败时画布状态一致；文本模块一并持久化
+- **布局存档**：JSON 序列化带版本字段，载入前预校验、失败时画布状态一致；文本模块与叠放次序一并持久化
+- **叠放次序（Z 序）**：管路 / 文本 / 部件在同一画布层，可置于顶层 / 底层、上移 / 下移一层，或精确置于某个元素之上 / 之下（右键菜单「叠放次序」）
 - **现场控制**：`AllowContextMenu` / `AllowNodeInteraction` 独立开关，坐标全入口钳位，键盘支持（Delete / 方向键 / Esc）
 
 ## 安装
@@ -180,17 +181,20 @@ PipeDefinitionRegistry.Register(new SteamPipeDefinition());
 
 ## 部件缩放与标签字号
 
-编辑模式下**选中或悬停**部件时，图形**右下角**显示一个 8px 的缩放手柄；按住它拖动即**等比**缩放，锚点为左上角（X / Y 不变），拖动中按 **Esc** 回退到拖动前的缩放系数。
+编辑模式下**选中或悬停**部件时，图形上显示三只 8px 的缩放手柄：**右下角**等比、**右侧**只改宽、**下方**只改高；按住拖动即以对应边为锚缩放（右下角锚左上角，右侧锚左边与高度，下方锚上边与宽度），拖动中按 **Esc** 回退到拖动前的缩放系数。
 
 | 场景 | 做法 |
 |---|---|
-| 拖动手柄缩放 | 选中部件 → 拖右下角方块（光标为 `SizeNWSE`） |
-| 代码缩放 | `diagram.ResizeNodeTo(node, canvasX, canvasY)`：按画布坐标等比缩放，自动钳到画布右下边界内 |
-| 精确设置 | 选中部件 → 属性 →「缩放」（0.2 ~ 5 倍） |
+| 等比缩放 | 选中部件 → 拖右下角方块（光标 `SizeNWSE`） |
+| 只改宽度 | 拖**右侧**中间方块（光标 `SizeWE`），高度不变 |
+| 只改高度 | 拖**下方**中间方块（光标 `SizeNS`），宽度不变 |
+| 代码缩放 | `diagram.ResizeNodeTo(node, x, y)` 等比；`ResizeNodeWidthTo(node, x)` / `ResizeNodeHeightTo(node, y)` 单方向，均自动钳到画布边界内 |
+| 精确设置 | 选中部件 → 属性 →「缩放（等比）」/「横向缩放」/「纵向缩放」（各 0.2 ~ 5 倍） |
 | 标签字号 | 属性 →「标签字号」（6 ~ 48px，默认 11） |
 | 关闭缩放入口 | 设 `IsEditable="False"`（运行模式不显示手柄，也不响应拖动） |
 
-- `Scale` 与 `LabelFontSize` 都随存档持久化（`NodeData.Scale / LabelFontSize`）；字号**不随部件缩放变化**，部件下方的标签带高度会自动跟随字号调整，大字号不会被截断。
+- 分方向缩放**不保持宽高比**：`ScaleX` / `ScaleY` 各自独立（钳制 `MinScale`~`MaxScale`），`node.SetScale(x, y)` 一次设置两向；`NodeViewModel.Scale` 保留为等比入口（赋值同时应用到两向，读取返回 `ScaleX`）。
+- `ScaleX` / `ScaleY` / `Scale` 与 `LabelFontSize` 都随存档持久化（`NodeData.ScaleX / ScaleY / Scale / LabelFontSize`）；**旧存档只有 `Scale` 时两个方向都按它回读**，无需迁移。字号**不随部件缩放变化**，部件下方的标签带高度会自动跟随字号调整，大字号不会被截断。
 - 手柄所在的 8px 区域**优先于管路端点**响应，保证手柄抓得住。
 
 ## 连线布局
@@ -271,6 +275,32 @@ SetTextCommand?.Execute(request);
 ```
 
 存档中对应 `Texts` 段（`TextBlockData`：Id / Number / X / Y / Content / FontSize，字号默认 14、钳制 6~48）；旧存档无该字段按空表回读，无需版本迁移。
+
+## 叠放次序（Z 序）
+
+管路 / 文本 / 部件位于**同一画布层**，前后关系由元素各自的 **`Z`** 决定（值越大越靠上），三类元素可互相叠放；
+`Z` 相同时按默认层级排列——管路最底、文本居中、部件最顶（与旧存档一致）。命中优先级与视觉一致。
+
+| 场景 | 做法 |
+|---|---|
+| 置于顶层 / 底层 | 右键元素 →「叠放次序」→ 置于顶层 / 置于底层 |
+| 上移 / 下移一层 | 同上 → 上移一层 / 下移一层 |
+| 精确置于某个元素之上 / 之下 | 同上 →「置于…之上 / 之下」，再**点击目标元素**完成；Esc 取消 |
+
+```csharp
+// 图模型层（不依赖控件）
+diagram.BringToFront(text);          // 文本置于顶层（越过所有部件与管路）
+diagram.SendToBack(node);            // 部件置于底层
+diagram.MoveAbove(text, node);       // 文本紧邻置于该部件之上
+diagram.MoveBelow(node, pipe);       // 部件紧邻置于该管路之下
+int z = DiagramViewModel.GetZ(text); // 读取叠放次序
+```
+
+画布命令（供宿主自行接线到工具栏 / 快捷键）：`ArrangeFrontCommand`、`ArrangeForwardCommand`、
+`ArrangeBackwardCommand`、`ArrangeBackCommand`、`ArrangeAboveCommand`、`ArrangeBelowCommand`
+（仅编辑模式且有选中项时可用；后两者进入目标选择模式）。
+
+注意：文本置顶后会挡住下方部件的点击（预期行为）；文本的命中范围仍限于文字实际占用的矩形。
 
 ## 文档
 

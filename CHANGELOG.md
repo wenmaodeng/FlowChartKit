@@ -1,5 +1,37 @@
 # FlowChartKit 发布说明
 
+## 1.8.0（未发布）
+
+新增**叠放次序（Z 序）**：管路 / 文本 / 部件现在位于**同一画布层**，可自由调整前后关系。
+
+### 变更：统一画布层（管路 / 文本 / 部件同层）
+
+- 原先三层固定叠放（管路 → 文本 → 部件）合并为**单一 ItemsControl**，元素前后关系由各自的 **`Z`** 决定（`Panel.ZIndex`）：
+  - 三类元素（含管路）可**互相叠放**——文本可置于部件之上，管路也可置于顶层；
+  - 同 `Z` 时按默认层级排列（管路 → 文本 → 部件），**旧存档行为不变**；
+  - 命中优先级与视觉一致（WPF 按 ZIndex 命中），不再依赖类型硬编码顺序。
+- **API**：`DiagramViewModel.CanvasItems`（`CompositeCollection`，供控件绑定）；`NodeViewModel.Z` / `TextBlockViewModel.Z` / `ConnectionViewModel.Z`；`DiagramViewModel.GetZ(item)` 读取。
+- 新增字段随存档持久化（`NodeData.Z` / `TextBlockData.Z` / `ConnectionData.Z`）；旧存档无该字段按 0 回读，**`Version` 仍为 1，无需迁移**。
+
+### 新增：叠放次序操作
+
+- 右键选中任意元素 → 「**叠放次序**」子菜单：置于顶层 / 上移一层 / 下移一层 / 置于底层。
+- 「**置于…之上 / 之下**」：进入目标选择模式，再点一个元素即完成（Esc 取消，状态经 `StatusChanged` 提示）。
+- 画布命令（可自行接线到宿主 UI）：`ArrangeFrontCommand` / `ArrangeForwardCommand` / `ArrangeBackwardCommand` / `ArrangeBackCommand` / `ArrangeAboveCommand` / `ArrangeBelowCommand`（仅编辑模式且有选中项时可用）。
+- **图模型 API**（不依赖控件）：
+  `BringToFront(item)` / `SendToBack(item)` / `BringForward(item)` / `SendBackward(item)` / `MoveAbove(item, target)` / `MoveBelow(item, target)`；
+  每次操作后统一重写 Z（100、200…），不会累积相同值或耗尽间隔。
+
+### 新增：部件分方向缩放（右侧改宽 / 下方改高）
+
+- 部件除右下角的**等比**手柄外，新增**右侧**（只改宽）与**下方**（只改高）两只拖动手柄：
+  - 右侧手柄 → 只改 `ScaleX`（左边锚定，高度不变）；
+  - 下方手柄 → 只改 `ScaleY`（上边锚定，宽度不变）；
+  - 右下角手柄仍是等比；后两只**不保持宽高比**，可自由拉成任意比例。
+- **API**：`NodeViewModel.ScaleX` / `ScaleY`（各自钳制 `MinScale`~`MaxScale`）、`SetScale(x, y)`（一次几何变更）、`DiagramViewModel.ResizeNodeWidthTo(node, canvasX)` / `ResizeNodeHeightTo(node, canvasY)`。
+- `NodeViewModel.Scale` 保留为**等比**入口（赋值同时应用到两向，读取返回 `ScaleX`），旧代码与旧存档行为不变。
+- 存档新增 `NodeData.ScaleX` / `ScaleY`；旧存档只有 `Scale` 时两向都按它回读，**`Version` 仍为 1，无需迁移**；新存档被旧版库读取时按 `Scale`（X 方向）等比还原。
+
 ## 1.7.0（2026-10-22）
 
 编辑体验增强与画布元素扩展：新增**文本模块**（第三种画布元素）与配套的**按编号改文本命令桥**，正交管路拐角改为圆角，管路按流向区分颜色，管路线段可与自身段落对齐，拖动部件时显示四边距离，对齐吸附可随时开关。
