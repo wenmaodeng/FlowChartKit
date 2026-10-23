@@ -22,14 +22,25 @@ public class FlowNodeControl : Control
     // 序号徽章描边：复用 NodeRenderer 的冻结画刷与工厂（同程序集 internal 可见）
     private static readonly Pen NumberBadgePen = NodeRenderer.MakePen(NodeRenderer.Outline, 1.2);
 
-    // 右下角缩放手柄：配色与管路端点手柄一致（库内固定的交互元素配色）
-    // 右下角手柄对应的光标：拖右下角是 NW-SE 方向
+    // 缩放手柄：配色与管路端点手柄一致（库内固定的交互元素配色）
+    // 各手柄对应的光标：右下角等比（NW-SE）、右侧改宽（W-E）、下方改高（N-S）
     private static readonly Cursor ResizeCursor = Cursors.SizeNWSE;
+    private static readonly Cursor ResizeWidthCursor = Cursors.SizeWE;
+    private static readonly Cursor ResizeHeightCursor = Cursors.SizeNS;
 
     private static readonly Pen ResizeHandlePen = CreatePen(0x2F, 0x6F, 0xAF, 1.5);
 
     /// <summary>缩放手柄边长（px）：固定尺寸，不随部件缩放变化。</summary>
     private const double ResizeHandleSize = 8;
+
+    /// <summary>三只缩放手柄：右下角等比、右侧只改宽、下方只改高。</summary>
+    private enum ResizeHandleKind
+    {
+        None = 0,
+        Uniform,
+        Width,
+        Height,
+    }
 
     /// <summary>标签文字相对图形底边的下移量：让开端口圆点与管路端点手柄。</summary>
     private const double LabelGap = 8;
@@ -43,10 +54,12 @@ public class FlowNodeControl : Control
     private bool _dragMoved;
     private Point _dragStartCanvas;
 
-    // 缩放拖拽（拖部件右下角手柄）：与移动互斥
+    // 缩放拖拽（拖右下角 / 右侧 / 下方任一手柄）：与移动互斥
     private bool _resizing;
     private bool _resizeMoved;
-    private double _origScale;
+    private ResizeHandleKind _resizeHandle;
+    private double _origScaleX;
+    private double _origScaleY;
     // 鼠标是否悬停在部件上：决定手柄是否显示（未选中的部件悬停时也可直接抓手柄）
     private bool _isMouseOver;
 
@@ -216,8 +229,9 @@ public class FlowNodeControl : Control
         // DPI 每帧只取一次，供序号与标签两处文本缓存判定使用
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        // 部件外观：NodeRenderer 按该类型的基准尺寸绘制，这里用缩放系数映射到实际尺寸
-        dc.PushTransform(new ScaleTransform(vm.Scale, vm.Scale));
+        // 部件外观：NodeRenderer 按该类型的基准尺寸绘制，这里用两个方向的缩放系数映射到实际尺寸
+        // （非等比缩放时两值不同：X 拉伸宽、Y 拉伸高）
+        dc.PushTransform(new ScaleTransform(vm.ScaleX, vm.ScaleY));
         NodeRenderer.Render(dc, vm);
         dc.Pop();
 
@@ -243,10 +257,14 @@ public class FlowNodeControl : Control
             var numFt = GetNumberText(vm.KindNumber, dpi);
             dc.DrawText(numFt, new Point(badgeCenter.X - numFt.Width / 2, badgeCenter.Y - numFt.Height / 2));
 
-            // 右下角缩放手柄（选中或悬停时显示）：按住它拖动可等比缩放
+            // 缩放手柄（选中或悬停时显示）：右下角等比、右侧只改宽、下方只改高
             if (ShowResizeHandle(vm))
-                dc.DrawRectangle(Brushes.White, ResizeHandlePen,
-                    ResizeHandleRect(vm.ShapeWidth, vm.ShapeHeight));
+            {
+                double w = vm.ShapeWidth, h = vm.ShapeHeight;
+                dc.DrawRectangle(Brushes.White, ResizeHandlePen, UniformHandleRect(w, h));
+                dc.DrawRectangle(Brushes.White, ResizeHandlePen, WidthHandleRect(w, h));
+                dc.DrawRectangle(Brushes.White, ResizeHandlePen, HeightHandleRect(w, h));
+            }
         }
 
         // 标签（缓存 FormattedText，仅 Label/字号/DPI 变化时重建）
@@ -372,14 +390,35 @@ public class FlowNodeControl : Control
         return vm.IsSelected || _isMouseOver || _resizing;
     }
 
-    /// <summary>手柄矩形（控件坐标）：固定在图形右下角，尺寸不随缩放变化。</summary>
-    private static Rect ResizeHandleRect(double shapeWidth, double shapeHeight)
-        => new(shapeWidth - ResizeHandleSize, shapeHeight - ResizeHandleSize,
-               ResizeHandleSize, ResizeHandleSize);
+    /// <summary>手柄矩形（控件坐标）：三只手柄都贴在图形边界内侧，尺寸不随缩放变化。</summary>
+    private static Rect UniformHandleRect(double w, double h)   // 右下角：等比缩放
+        => new(w - ResizeHandleSize, h - ResizeHandleSize, ResizeHandleSize, ResizeHandleSize);
 
-    /// <summary>鼠标位置（控件坐标）是否落在缩放手柄上。</summary>
+    private static Rect WidthHandleRect(double w, double h)     // 右侧中部：只改宽度
+        => new(w - ResizeHandleSize, (h - ResizeHandleSize) / 2, ResizeHandleSize, ResizeHandleSize);
+
+    private static Rect HeightHandleRect(double w, double h)    // 下边中部：只改高度
+        => new((w - ResizeHandleSize) / 2, h - ResizeHandleSize, ResizeHandleSize, ResizeHandleSize);
+
+    /// <summary>鼠标位置（控件坐标）落在哪只手柄上；右下角优先（部件很小时可能与另两只重叠）。</summary>
+    private static ResizeHandleKind HitResizeHandle(NodeViewModel vm, Point p)
+    {
+        double w = vm.ShapeWidth, h = vm.ShapeHeight;
+        if (UniformHandleRect(w, h).Contains(p)) return ResizeHandleKind.Uniform;
+        if (WidthHandleRect(w, h).Contains(p)) return ResizeHandleKind.Width;
+        if (HeightHandleRect(w, h).Contains(p)) return ResizeHandleKind.Height;
+        return ResizeHandleKind.None;
+    }
+
     private static bool IsOnResizeHandle(NodeViewModel vm, Point p)
-        => ResizeHandleRect(vm.ShapeWidth, vm.ShapeHeight).Contains(p);
+        => HitResizeHandle(vm, p) != ResizeHandleKind.None;
+
+    private static Cursor CursorForHandle(ResizeHandleKind kind) => kind switch
+    {
+        ResizeHandleKind.Width => ResizeWidthCursor,
+        ResizeHandleKind.Height => ResizeHeightCursor,
+        _ => ResizeCursor,
+    };
 
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)
     {
@@ -478,15 +517,18 @@ public class FlowNodeControl : Control
         diagram.SelectedNode = _vm;
         Focus();
 
-        // 右下角手柄：按住拖动即等比缩放（与整体移动互斥）
-        if (ShowResizeHandle(_vm) && IsOnResizeHandle(_vm, e.GetPosition(this)))
+        // 三只手柄：右下角等比缩放、右侧只改宽、下方只改高（与整体移动互斥）
+        var handle = ShowResizeHandle(_vm) ? HitResizeHandle(_vm, e.GetPosition(this)) : ResizeHandleKind.None;
+        if (handle != ResizeHandleKind.None)
         {
             _resizing = true;
             _resizeMoved = false;
-            _origScale = _vm.Scale;
+            _resizeHandle = handle;
+            _origScaleX = _vm.ScaleX;
+            _origScaleY = _vm.ScaleY;
             _dragStartCanvas = e.GetPosition(canvas);
             CaptureMouse();
-            Cursor = ResizeCursor;
+            Cursor = CursorForHandle(handle);
             diagram.ClearAlignmentGuides();  // 缩放不参与对齐吸附
             return;
         }
@@ -527,18 +569,31 @@ public class FlowNodeControl : Control
                 _resizeMoved = true;
             }
 
-            // 一次逻辑缩放只触发一次 GeometryChanged，相连管路每帧只重算一次
-            resizeDiagram.ResizeNodeTo(_vm, rp.X, rp.Y);
+            // 一次逻辑缩放只触发一次 GeometryChanged，相连管路每帧只重算一次。
+            // 单方向手柄只动对应的一维：另一维保持按下时的系数（不受鼠标另一个方向影响）
+            switch (_resizeHandle)
+            {
+                case ResizeHandleKind.Width:
+                    resizeDiagram.ResizeNodeWidthTo(_vm, rp.X);
+                    break;
+                case ResizeHandleKind.Height:
+                    resizeDiagram.ResizeNodeHeightTo(_vm, rp.Y);
+                    break;
+                default:
+                    resizeDiagram.ResizeNodeTo(_vm, rp.X, rp.Y);
+                    break;
+            }
             return;
         }
 
         if (!_dragging || !IsMouseCaptured || _vm is null)
         {
-            // 悬停光标：手柄上提示对角缩放，其余位置恢复默认
+            // 悬停光标：手柄上提示对应方向的缩放，其余位置恢复默认
             if (_vm is not null)
-                Cursor = ShowResizeHandle(_vm) && IsOnResizeHandle(_vm, e.GetPosition(this))
-                    ? ResizeCursor
-                    : Cursors.Arrow;
+            {
+                var hover = ShowResizeHandle(_vm) ? HitResizeHandle(_vm, e.GetPosition(this)) : ResizeHandleKind.None;
+                Cursor = hover == ResizeHandleKind.None ? Cursors.Arrow : CursorForHandle(hover);
+            }
             return;
         }
 
@@ -636,7 +691,7 @@ public class FlowNodeControl : Control
         if (e.Key != Key.Escape || !_resizing || _vm is null) return;
 
         e.Handled = true;
-        _vm.Scale = _origScale;
+        _vm.SetScale(_origScaleX, _origScaleY);
         FinishResize();
     }
 

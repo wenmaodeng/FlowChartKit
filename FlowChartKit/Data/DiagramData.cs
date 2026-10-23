@@ -35,6 +35,9 @@ public sealed class TextBlockData
 
     /// <summary>字号（px）；缺省 14（与 TextBlockViewModel.DefaultFontSize 一致），旧存档无此字段时按该默认值回读。</summary>
     public double FontSize { get; set; } = TextBlockViewModel.DefaultFontSize;
+
+    /// <summary>叠放次序；缺省 0（旧存档无此字段时按默认层级排列）。</summary>
+    public int Z { get; set; }
 }
 
 public sealed class NodeData
@@ -51,6 +54,15 @@ public sealed class NodeData
 
     /// <summary>同类部件序号：保存布局时按当前值写入；0 表示未编号（载入时回退为按集合顺序推导，兼容旧存档）。</summary>
     public int Number { get; set; }
+
+    /// <summary>水平（宽度）方向缩放系数：1 为原始宽度；0 表示旧存档未提供（回退到 <see cref="Scale"/>）。</summary>
+    public double ScaleX { get; set; }
+
+    /// <summary>垂直（高度）方向缩放系数：1 为原始高度；0 表示旧存档未提供（回退到 <see cref="Scale"/>）。</summary>
+    public double ScaleY { get; set; }
+
+    /// <summary>叠放次序；缺省 0（旧存档无此字段时按默认层级排列）。</summary>
+    public int Z { get; set; }
 }
 
 public sealed class ConnectionData
@@ -78,4 +90,7 @@ public sealed class ConnectionData
 
     /// <summary>正交布局下手工拖动中间水平段后的 Y 坐标；null 表示按端口方向自动取位。</summary>
     public double? DetourY { get; set; }
+
+    /// <summary>叠放次序；缺省 0（旧存档无此字段时按默认层级排列）。</summary>
+    public int Z { get; set; }
 }

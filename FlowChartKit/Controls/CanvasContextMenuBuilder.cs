@@ -53,6 +53,12 @@ internal static class CanvasContextMenuBuilder
             menu.Items.Add(NewAddConnectionMenu(host));
         }
 
+        // 选中任一元素（管路 / 文本 / 部件）时都可调整叠放次序
+        if (diagram.SelectedConnection is not null
+            || diagram.SelectedTextBlock is not null
+            || diagram.SelectedNode is not null)
+            menu.Items.Add(NewArrangeMenu(host));
+
         menu.Items.Add(new Separator());
         menu.Items.Add(NewEditableItem(host));
         menu.Items.Add(NewSnapItem(host));
@@ -86,6 +92,23 @@ internal static class CanvasContextMenuBuilder
         if (customGroup.Items.Count > 0)
             addConnection.Items.Add(customGroup);
         return addConnection;
+    }
+
+    /// <summary>
+    /// "叠放次序"子菜单：管路 / 文本 / 部件在同一画布层按各自的 Z 排布，可置于顶层 / 底层、
+    /// 上移 / 下移一层；「置于…之上 / 之下」进入目标选择模式（再点一个元素完成，Esc 取消）。
+    /// </summary>
+    private static MenuItem NewArrangeMenu(DiagramCanvasControl host)
+    {
+        var arrange = new MenuItem { Header = "叠放次序" };
+        arrange.Items.Add(NewItem("置于顶层", host.ArrangeFrontCommand, null));
+        arrange.Items.Add(NewItem("上移一层", host.ArrangeForwardCommand, null));
+        arrange.Items.Add(NewItem("下移一层", host.ArrangeBackwardCommand, null));
+        arrange.Items.Add(NewItem("置于底层", host.ArrangeBackCommand, null));
+        arrange.Items.Add(new Separator());
+        arrange.Items.Add(NewItem("置于…之上", host.ArrangeAboveCommand, null));
+        arrange.Items.Add(NewItem("置于…之下", host.ArrangeBelowCommand, null));
+        return arrange;
     }
 
     private static MenuItem NewEditableItem(DiagramCanvasControl host)

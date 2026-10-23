@@ -31,25 +31,11 @@
                 Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
                 Height="{Binding Diagram.CanvasHeight, ElementName=Root}"
                 Background="{Binding Background, ElementName=Root}"
+                PreviewMouseLeftButtonDown="DiagramCanvas_PreviewMouseLeftButtonDown"
                 MouseLeftButtonDown="DiagramCanvas_MouseLeftButtonDown">
-            <!-- 管路（下层） -->
-            <ItemsControl ItemsSource="{Binding Diagram.Connections, ElementName=Root}"
-                          Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
-                          Height="{Binding Diagram.CanvasHeight, ElementName=Root}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <Canvas IsItemsHost="True" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemContainerStyle>
-                    <Style TargetType="ContentPresenter">
-                        <Setter Property="Canvas.Left" Value="0" />
-                        <Setter Property="Canvas.Top" Value="0" />
-                    </Style>
-                </ItemsControl.ItemContainerStyle>
-            </ItemsControl>
-            <!-- 文本模块（管路之上、部件之下）：左键/右键命中优先级低于部件 -->
-            <ItemsControl ItemsSource="{Binding Diagram.Texts, ElementName=Root}"
+            <!-- 统一画布层：管路 / 文本 / 部件在同一层，前后关系由各自的 Z（Panel.ZIndex）决定，
+                 同 Z 时按 CompositeCollection 的声明顺序（管路 → 文本 → 部件）排列；命中优先级与视觉一致。 -->
+            <ItemsControl ItemsSource="{Binding Diagram.CanvasItems, ElementName=Root}"
                           Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
                           Height="{Binding Diagram.CanvasHeight, ElementName=Root}">
                 <ItemsControl.ItemsPanel>
@@ -61,22 +47,7 @@
                     <Style TargetType="ContentPresenter">
                         <Setter Property="Canvas.Left" Value="{Binding X}" />
                         <Setter Property="Canvas.Top" Value="{Binding Y}" />
-                    </Style>
-                </ItemsControl.ItemContainerStyle>
-            </ItemsControl>
-            <!-- 部件（上层） -->
-            <ItemsControl ItemsSource="{Binding Diagram.Nodes, ElementName=Root}"
-                          Width="{Binding Diagram.CanvasWidth, ElementName=Root}"
-                          Height="{Binding Diagram.CanvasHeight, ElementName=Root}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <Canvas IsItemsHost="True" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemContainerStyle>
-                    <Style TargetType="ContentPresenter">
-                        <Setter Property="Canvas.Left" Value="{Binding X}" />
-                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        <Setter Property="Panel.ZIndex" Value="{Binding Z}" />
                     </Style>
                 </ItemsControl.ItemContainerStyle>
             </ItemsControl>

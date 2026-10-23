@@ -132,6 +132,14 @@ public partial class DiagramCanvasControl : UserControl
         AddNodeCommand = new RelayCommand(AddNode);
         AddTextItemCommand = new RelayCommand(AddTextItem);
         AddConnectionCommand = new RelayCommand(AddConnection);
+
+        // 叠放次序：作用于当前选中元素（部件 / 文本 / 管路统一排序）
+        ArrangeFrontCommand = new RelayCommand(_ => Arrange(Diagram.BringToFront, "已置于顶层"), _ => CanArrange());
+        ArrangeBackCommand = new RelayCommand(_ => Arrange(Diagram.SendToBack, "已置于底层"), _ => CanArrange());
+        ArrangeForwardCommand = new RelayCommand(_ => Arrange(Diagram.BringForward, "已上移一层"), _ => CanArrange());
+        ArrangeBackwardCommand = new RelayCommand(_ => Arrange(Diagram.SendBackward, "已下移一层"), _ => CanArrange());
+        ArrangeAboveCommand = new RelayCommand(_ => BeginArrangeTarget(ArrangeMode.Above), _ => CanArrange());
+        ArrangeBelowCommand = new RelayCommand(_ => BeginArrangeTarget(ArrangeMode.Below), _ => CanArrange());
         ShowPropertiesCommand = new RelayCommand(_ => ShowProperties());
         ClearLayoutCommand = new RelayCommand(_ => ClearLayout());
         InitializeComponent();
@@ -242,6 +250,24 @@ public partial class DiagramCanvasControl : UserControl
     /// <summary>在当前右键位置添加一个文本模块（右键菜单）。</summary>
     public ICommand AddTextItemCommand { get; }
 
+    /// <summary>置于顶层（右键菜单 → 叠放次序）。</summary>
+    public ICommand ArrangeFrontCommand { get; }
+
+    /// <summary>置于底层（右键菜单 → 叠放次序）。</summary>
+    public ICommand ArrangeBackCommand { get; }
+
+    /// <summary>上移一层（右键菜单 → 叠放次序）。</summary>
+    public ICommand ArrangeForwardCommand { get; }
+
+    /// <summary>下移一层（右键菜单 → 叠放次序）。</summary>
+    public ICommand ArrangeBackwardCommand { get; }
+
+    /// <summary>置于…之上：进入目标选择模式，再点击一个元素完成（Esc 取消）。</summary>
+    public ICommand ArrangeAboveCommand { get; }
+
+    /// <summary>置于…之下：进入目标选择模式，再点击一个元素完成（Esc 取消）。</summary>
+    public ICommand ArrangeBelowCommand { get; }
+
     /// <summary>在当前右键位置添加一条自由管路（右键菜单）。</summary>
     public ICommand AddConnectionCommand { get; }
 
@@ -350,6 +376,12 @@ public partial class DiagramCanvasControl : UserControl
                 {
                     PendingNodeKind = null;
                     StatusChanged?.Invoke("已取消部件放置");
+                    e.Handled = true;
+                }
+                else if (_arrangeMode != ArrangeMode.None)
+                {
+                    _arrangeMode = ArrangeMode.None;
+                    StatusChanged?.Invoke("已取消叠放");
                     e.Handled = true;
                 }
                 break;
@@ -537,30 +569,101 @@ public partial class DiagramCanvasControl : UserControl
         _menuPosition = e.GetPosition(DiagramCanvas);
 
         var diagram = Diagram;
-        var hit = VisualTreeHelper.HitTest(this, e.GetPosition(this))?.VisualHit;
-
-        // 部件层在管路层之上，优先判定；文本模块层介于两者之间
-        if (FindVisualAncestor<FlowNodeControl>(hit)?.DataContext is NodeViewModel node)
+        switch (HitCanvasItem(e.GetPosition(this)))
         {
-            diagram.SelectedNode = node;
+            case NodeViewModel node:
+                diagram.SelectedNode = node;
+                return;
+            case TextBlockViewModel text:
+                diagram.SelectedTextBlock = text;
+                return;
+            case ConnectionViewModel connection:
+                diagram.SelectedConnection = connection;
+                return;
+            default:
+                diagram.SelectedNode = null;
+                diagram.SelectedConnection = null;
+                diagram.SelectedTextBlock = null;
+                return;
+        }
+    }
+
+    // ---- 叠放次序（Z 序）----
+
+    /// <summary>目标选择模式：None 表示未激活；Above / Below 表示等待点击目标元素。</summary>
+    private enum ArrangeMode
+    {
+        None,
+        Above,
+        Below
+    }
+
+    private ArrangeMode _arrangeMode;
+
+    /// <summary>当前选中的画布元素（部件 / 文本 / 管路），即叠放操作的作用对象。</summary>
+    private object? CurrentItem
+        => (object?)Diagram.SelectedConnection
+           ?? (object?)Diagram.SelectedTextBlock
+           ?? (object?)Diagram.SelectedNode;
+
+    /// <summary>叠放操作可用：编辑模式且有选中元素。</summary>
+    private bool CanArrange() => Diagram.IsEditable && CurrentItem != null;
+
+    private void Arrange(Action<object?> reorder, string message)
+    {
+        if (CurrentItem is not { } item) return;
+        reorder(item);
+        StatusChanged?.Invoke(message);
+    }
+
+    /// <summary>进入目标选择模式：焦点落回画布，Esc 才能经冒泡到达（Esc 处理见 OnCanvasKeyDown）。</summary>
+    private void BeginArrangeTarget(ArrangeMode mode)
+    {
+        if (!CanArrange()) return;
+        _arrangeMode = mode;
+        Focus();
+        StatusChanged?.Invoke(mode == ArrangeMode.Above
+            ? "点击目标元素：把选中项置于它之上（Esc 取消）"
+            : "点击目标元素：把选中项置于它之下（Esc 取消）");
+    }
+
+    /// <summary>
+    /// 目标选择模式下的左键点击（走预览阶段，避免被元素自身的选中 / 拖动逻辑吞掉）：
+    /// 命中的元素即目标，完成"置于其上 / 其下"后退出模式；未命中则取消。
+    /// </summary>
+    private void DiagramCanvas_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_arrangeMode == ArrangeMode.None) return;
+        e.Handled = true;
+
+        var item = CurrentItem;
+        var target = HitCanvasItem(e.GetPosition(this));
+        bool above = _arrangeMode == ArrangeMode.Above;
+        _arrangeMode = ArrangeMode.None;
+
+        if (item is null || target is null || ReferenceEquals(item, target))
+        {
+            StatusChanged?.Invoke("已取消叠放（需要点中另一个元素作为目标）");
             return;
         }
 
-        if (FindVisualAncestor<TextBlockItemControl>(hit)?.DataContext is TextBlockViewModel text)
-        {
-            diagram.SelectedTextBlock = text;
-            return;
-        }
+        bool ok = above ? Diagram.MoveAbove(item, target) : Diagram.MoveBelow(item, target);
+        StatusChanged?.Invoke(ok
+            ? $"已置于目标{(above ? "之上" : "之下")}"
+            : "叠放失败（目标不在当前图中）");
+    }
 
-        if (FindVisualAncestor<PipeControl>(hit)?.DataContext is ConnectionViewModel connection)
-        {
-            diagram.SelectedConnection = connection;
-            return;
-        }
-
-        diagram.SelectedNode = null;
-        diagram.SelectedConnection = null;
-        diagram.SelectedTextBlock = null;
+    /// <summary>
+    /// 命中画布元素（部件 / 文本 / 管路）：VisualTreeHelper 返回的是视觉最上层元素，
+    /// 因此 Z 序调整后命中的与用户看到的始终一致（不需再按类型排优先级）。
+    /// </summary>
+    private object? HitCanvasItem(Point positionInControl)
+    {
+        var hit = VisualTreeHelper.HitTest(this, positionInControl)?.VisualHit;
+        if (FindVisualAncestor<FlowNodeControl>(hit)?.DataContext is NodeViewModel node) return node;
+        if (FindVisualAncestor<TextBlockItemControl>(hit)?.DataContext is TextBlockViewModel text) return text;
+        if (FindVisualAncestor<PipeControl>(hit)?.DataContext is ConnectionViewModel conn) return conn;
+        return null;
     }
 
     /// <summary>菜单打开前按当前选中状态重建菜单项（构建逻辑见 <see cref="CanvasContextMenuBuilder"/>）；

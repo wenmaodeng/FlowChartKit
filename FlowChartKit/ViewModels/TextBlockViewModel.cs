@@ -86,6 +86,13 @@ public class TextBlockViewModel : ObservableBase
         set => Set(ref _isSelected, value);
     }
 
+    private int _z;
+    /// <summary>
+    /// 叠放次序（Z 序）：值越大越靠上；由 <see cref="DiagramViewModel"/> 的 BringToFront / SendToBack /
+    /// MoveAbove 等统一分配并持久化。同值时文本排在管路之上、部件之下（默认层级）。
+    /// </summary>
+    public int Z { get => _z; set => Set(ref _z, value); }
+
     /// <summary>所属图模型（由 DiagramViewModel.AddTextItem 设置）。</summary>
     public DiagramViewModel? Diagram { get; internal set; }
 }

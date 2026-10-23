@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using FlowChartKit.Core;
 using FlowChartKit.Data;
@@ -45,6 +46,15 @@ public class DiagramViewModel : ObservableBase
             else if (SelectedNode is { } n) RemoveNode(n);
             else if (SelectedTextBlock is { } t) RemoveTextItem(t);
         }, _ => SelectedConnection != null || SelectedNode != null || SelectedTextBlock != null);
+
+        // 统一画布项：默认层级（管路 → 文本 → 部件）由容器声明顺序决定；Z 相同时以此顺序为准。
+        // 三个集合实例不变（增删发生在集合内部），故只装配一次，变更由 CompositeCollection 自动冒泡。
+        CanvasItems = new CompositeCollection
+        {
+            new CollectionContainer { Collection = Connections },
+            new CollectionContainer { Collection = Texts },
+            new CollectionContainer { Collection = Nodes },
+        };
     }
 
     private double _canvasWidth;
@@ -94,6 +104,13 @@ public class DiagramViewModel : ObservableBase
 
     /// <summary>文本模块（与部件 / 管路平级的第三种画布元素）。</summary>
     public ObservableCollection<TextBlockViewModel> Texts { get; } = [];
+
+    /// <summary>
+    /// 统一画布项集合（管路 → 文本 → 部件 的默认层级顺序）：画布控件以**单一 ItemsControl** 绑定它，
+    /// 元素的前后关系由各自的 <c>Z</c> 决定（<c>Panel.ZIndex</c>），因此**管路 / 文本 / 部件可自由叠放**。
+    /// 三个子集合实例不变（增删发生在集合内部），故只装配一次；变更由 <see cref="CompositeCollection"/> 自动冒泡。
+    /// </summary>
+    public CompositeCollection CanvasItems { get; }
 
     /// <summary>部件 → 相连管路 的索引：节点移动/缩放时只重算自己的管路，避免全图扫描。</summary>
     private readonly Dictionary<NodeViewModel, List<ConnectionViewModel>> _connectionsByNode = new();
@@ -848,6 +865,20 @@ public class DiagramViewModel : ObservableBase
         node.Scale = Math.Min(Math.Max(byWidth, byHeight), MaxScaleFittingCanvas(node));
     }
 
+    /// <summary>
+    /// 只按鼠标位置（画布坐标）**改宽度**（<see cref="NodeViewModel.ScaleX"/>），供拖动部件**右侧手柄**使用：
+    /// 以部件左边为锚（X 不变、高度不变），再钳到画布右边界内（仍受 MinScale / MaxScale 约束）。
+    /// </summary>
+    public void ResizeNodeWidthTo(NodeViewModel node, double canvasX)
+        => node.ScaleX = Math.Min(ScaleFor(node.BaseWidth, canvasX - node.X), MaxScaleFittingCanvasX(node));
+
+    /// <summary>
+    /// 只按鼠标位置（画布坐标）**改高度**（<see cref="NodeViewModel.ScaleY"/>），供拖动部件**下方手柄**使用：
+    /// 以部件上边为锚（Y 不变、宽度不变），再钳到画布下边界内（仍受 MinScale / MaxScale 约束）。
+    /// </summary>
+    public void ResizeNodeHeightTo(NodeViewModel node, double canvasY)
+        => node.ScaleY = Math.Min(ScaleFor(node.BaseHeight, canvasY - node.Y), MaxScaleFittingCanvasY(node));
+
     private static double ScaleFor(double baseSize, double size)
         => baseSize > 0 ? size / baseSize : 1;
 
@@ -857,6 +888,135 @@ public class DiagramViewModel : ObservableBase
         double byWidth = node.BaseWidth > 0 ? (CanvasWidth - node.X) / node.BaseWidth : NodeViewModel.MaxScale;
         double byHeight = node.BaseHeight > 0 ? (CanvasHeight - node.Y) / node.BaseHeight : NodeViewModel.MaxScale;
         return Math.Max(NodeViewModel.MinScale, Math.Min(byWidth, byHeight));
+    }
+
+    /// <summary>只改宽度时，不越出画布右边界所能达到的最大横向缩放系数。</summary>
+    private double MaxScaleFittingCanvasX(NodeViewModel node)
+        => node.BaseWidth > 0
+            ? Math.Max(NodeViewModel.MinScale, (CanvasWidth - node.X) / node.BaseWidth)
+            : NodeViewModel.MaxScale;
+
+    /// <summary>只改高度时，不越出画布下边界所能达到的最大纵向缩放系数。</summary>
+    private double MaxScaleFittingCanvasY(NodeViewModel node)
+        => node.BaseHeight > 0
+            ? Math.Max(NodeViewModel.MinScale, (CanvasHeight - node.Y) / node.BaseHeight)
+            : NodeViewModel.MaxScale;
+
+    // ---- 叠放次序（Z 序）：管路 / 文本 / 部件统一排序 ----
+
+    /// <summary>相邻叠放层之间的 Z 间隔：留足空隙便于在两者之间插入（由 ApplyOrder 统一重排，不会耗尽）。</summary>
+    private const int ZStep = 100;
+
+    /// <summary>读取画布元素（部件 / 文本 / 管路）的叠放次序；非画布元素返回 0。</summary>
+    public static int GetZ(object? item) => item switch
+    {
+        NodeViewModel n => n.Z,
+        TextBlockViewModel t => t.Z,
+        ConnectionViewModel c => c.Z,
+        _ => 0
+    };
+
+    private static void SetZ(object item, int z)
+    {
+        switch (item)
+        {
+            case NodeViewModel n: n.Z = z; break;
+            case TextBlockViewModel t: t.Z = z; break;
+            case ConnectionViewModel c: c.Z = z; break;
+        }
+    }
+
+    private static bool IsCanvasItem(object? item)
+        => item is NodeViewModel or TextBlockViewModel or ConnectionViewModel;
+
+    /// <summary>当前叠放顺序（**从底到顶**）：按 Z 升序，同 Z 时按默认层级（管路 → 文本 → 部件）。</summary>
+    private List<object> OrderedItems()
+    {
+        var items = new List<object>(Connections.Count + Texts.Count + Nodes.Count);
+        items.AddRange(Connections);
+        items.AddRange(Texts);
+        items.AddRange(Nodes);
+        // OrderBy 是稳定排序：同 Z 保持上面的基线顺序
+        return items.OrderBy(GetZ).ToList();
+    }
+
+    /// <summary>按给定顺序（从底到顶）统一重写 Z：值始终规整为 100、200…，避免出现相同 / 耗尽间隔。</summary>
+    private static void ApplyOrder(List<object> ordered)
+    {
+        int z = 0;
+        foreach (var item in ordered)
+            SetZ(item, z += ZStep);
+    }
+
+    /// <summary>置于顶层。</summary>
+    public void BringToFront(object? item)
+    {
+        if (!IsCanvasItem(item)) return;
+        var ordered = OrderedItems();
+        ordered.Remove(item!);
+        ordered.Add(item!);
+        ApplyOrder(ordered);
+    }
+
+    /// <summary>置于底层。</summary>
+    public void SendToBack(object? item)
+    {
+        if (!IsCanvasItem(item)) return;
+        var ordered = OrderedItems();
+        ordered.Remove(item!);
+        ordered.Insert(0, item!);
+        ApplyOrder(ordered);
+    }
+
+    /// <summary>上移一层（与紧邻其上的元素交换）。</summary>
+    public void BringForward(object? item)
+    {
+        if (!IsCanvasItem(item)) return;
+        var ordered = OrderedItems();
+        int i = ordered.IndexOf(item!);
+        if (i < 0 || i >= ordered.Count - 1) return;
+        (ordered[i], ordered[i + 1]) = (ordered[i + 1], ordered[i]);
+        ApplyOrder(ordered);
+    }
+
+    /// <summary>下移一层（与紧邻其下的元素交换）。</summary>
+    public void SendBackward(object? item)
+    {
+        if (!IsCanvasItem(item)) return;
+        var ordered = OrderedItems();
+        int i = ordered.IndexOf(item!);
+        if (i <= 0) return;
+        (ordered[i], ordered[i - 1]) = (ordered[i - 1], ordered[i]);
+        ApplyOrder(ordered);
+    }
+
+    /// <summary>
+    /// 置于 <paramref name="target"/> 之上（紧邻）。两者可以是任意画布元素（部件 / 文本 / 管路）。
+    /// </summary>
+    /// <returns>两者均为本图的画布元素且成功插入时为 true。</returns>
+    public bool MoveAbove(object? item, object? target)
+    {
+        if (!IsCanvasItem(item) || !IsCanvasItem(target) || ReferenceEquals(item, target)) return false;
+        var ordered = OrderedItems();
+        if (!ordered.Remove(item!)) return false;
+        int idx = ordered.IndexOf(target!);
+        if (idx < 0) return false;
+        ordered.Insert(idx + 1, item!);
+        ApplyOrder(ordered);
+        return true;
+    }
+
+    /// <summary>置于 <paramref name="target"/> 之下（紧邻）。</summary>
+    public bool MoveBelow(object? item, object? target)
+    {
+        if (!IsCanvasItem(item) || !IsCanvasItem(target) || ReferenceEquals(item, target)) return false;
+        var ordered = OrderedItems();
+        if (!ordered.Remove(item!)) return false;
+        int idx = ordered.IndexOf(target!);
+        if (idx < 0) return false;
+        ordered.Insert(idx, item!);
+        ApplyOrder(ordered);
+        return true;
     }
 
     // ---- 序列化 ----
@@ -874,9 +1034,13 @@ public class DiagramViewModel : ObservableBase
                 Label = n.Label,
                 X = n.X,
                 Y = n.Y,
-                Scale = n.Scale,
+                // 等比存档字段保留（旧版库回读时取它）；两方向一致时即该值
+                Scale = n.ScaleX,
+                ScaleX = n.ScaleX,
+                ScaleY = n.ScaleY,
                 LabelFontSize = n.LabelFontSize,
-                Number = n.KindNumber
+                Number = n.KindNumber,
+                Z = n.Z
             });
         }
 
@@ -891,6 +1055,7 @@ public class DiagramViewModel : ObservableBase
                 Routing = c.Routing,
                 DetourX = c.DetourX,
                 DetourY = c.DetourY,
+                Z = c.Z,
                 SourceNodeId = c.SourceNode?.Id,
                 SourcePortId = c.SourcePort?.Id,
                 TargetNodeId = c.TargetNode?.Id,
@@ -910,7 +1075,8 @@ public class DiagramViewModel : ObservableBase
                 X = t.X,
                 Y = t.Y,
                 Content = t.Content,
-                FontSize = t.FontSize
+                FontSize = t.FontSize,
+                Z = t.Z
             });
         }
         return data;
@@ -963,9 +1129,12 @@ public class DiagramViewModel : ObservableBase
             foreach (var nd in data.Nodes)
             {
                 var node = AddNode(nd.Kind, nd.X, nd.Y, nd.Label, nd.Id);
-                node.Scale = nd.Scale > 0 ? nd.Scale : 1;
+                // 分方向缩放：旧存档只有 Scale（等比），缺失的方向回退到它
+                node.SetScale(nd.ScaleX > 0 ? nd.ScaleX : (nd.Scale > 0 ? nd.Scale : 1),
+                              nd.ScaleY > 0 ? nd.ScaleY : (nd.Scale > 0 ? nd.Scale : 1));
                 // 旧存档无字号字段时为 0，回退默认值（属性自身还会再钳一次上下限）
                 if (nd.LabelFontSize > 0) node.LabelFontSize = nd.LabelFontSize;
+                node.Z = nd.Z;   // 旧存档无 Z 字段时为 0（按默认层级排列）
                 map[nd.Id] = node;
             }
         }
@@ -998,7 +1167,8 @@ public class DiagramViewModel : ObservableBase
                 PipeKind = pipeKind,
                 Routing = cd.Routing,
                 DetourX = cd.DetourX,
-                DetourY = cd.DetourY
+                DetourY = cd.DetourY,
+                Z = cd.Z
             };
             conn.Number = cd.Number > 0 ? cd.Number : ++nextConnNumber;
 
@@ -1035,6 +1205,7 @@ public class DiagramViewModel : ObservableBase
         {
             var text = AddTextItem(td.X, td.Y, td.Content,
                 td.FontSize > 0 ? td.FontSize : TextBlockViewModel.DefaultFontSize, td.Id);
+            text.Z = td.Z;
             if (td.Number > 0)
                 text.Number = td.Number;
         }

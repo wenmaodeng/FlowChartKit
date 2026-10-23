@@ -26,7 +26,8 @@ public class NodeViewModel : ObservableBase
     private double _y;
     private string _label = "";
     private bool _isSelected;
-    private double _scale = 1;
+    private double _scaleX = 1;
+    private double _scaleY = 1;
     private double _labelFontSize = DefaultLabelFontSize;
 
     public NodeViewModel(NodeKind kind, string? label = null, double x = 0, double y = 0, string? id = null)
@@ -50,23 +51,54 @@ public class NodeViewModel : ObservableBase
     public double BaseWidth { get; }
     public double BaseHeight { get; }
 
-    /// <summary>比例缩放系数：1 为原始尺寸，改动会联动 <see cref="ShapeWidth"/> / <see cref="ShapeHeight"/>。</summary>
-    public double Scale
+    /// <summary>**水平（宽度）方向**的缩放系数：1 为原始宽度，改动联动 <see cref="ShapeWidth"/>。</summary>
+    public double ScaleX
     {
-        get => _scale;
-        set
-        {
-            if (Set(ref _scale, Math.Clamp(value, MinScale, MaxScale)))
-            {
-                Raise(nameof(ShapeWidth));
-                Raise(nameof(ShapeHeight));
-                GeometryChanged?.Invoke(this);
-            }
-        }
+        get => _scaleX;
+        set => SetScale(value, _scaleY);
     }
 
-    public double ShapeWidth => BaseWidth * _scale;
-    public double ShapeHeight => BaseHeight * _scale;
+    /// <summary>**垂直（高度）方向**的缩放系数：1 为原始高度，改动联动 <see cref="ShapeHeight"/>。</summary>
+    public double ScaleY
+    {
+        get => _scaleY;
+        set => SetScale(_scaleX, value);
+    }
+
+    /// <summary>
+    /// **等比**缩放系数（<see cref="ScaleX"/> = <see cref="ScaleY"/>，兼容旧 API 与便捷入口）：
+    /// 赋值时同时应用到两个方向（只触发一次几何变更）；读取返回 <see cref="ScaleX"/>——
+    /// 两方向不一致（非等比缩放）时请以 <see cref="ScaleX"/> / <see cref="ScaleY"/> 为准。
+    /// </summary>
+    public double Scale
+    {
+        get => _scaleX;
+        set => SetScale(value, value);
+    }
+
+    /// <summary>
+    /// 一次设置两个方向的缩放系数（钳制到 <see cref="MinScale"/> ~ <see cref="MaxScale"/>）：
+    /// 等比缩放、存档载入、Esc 回滚都走这里，保证只触发一次
+    /// <see cref="GeometryChanged"/>（相连管路每帧只重算一次）。
+    /// </summary>
+    public void SetScale(double scaleX, double scaleY)
+    {
+        double x = Math.Clamp(scaleX, MinScale, MaxScale);
+        double y = Math.Clamp(scaleY, MinScale, MaxScale);
+        if (_scaleX == x && _scaleY == y) return;
+
+        _scaleX = x;
+        _scaleY = y;
+        Raise(nameof(ScaleX));
+        Raise(nameof(ScaleY));
+        Raise(nameof(Scale));
+        Raise(nameof(ShapeWidth));
+        Raise(nameof(ShapeHeight));
+        GeometryChanged?.Invoke(this);
+    }
+
+    public double ShapeWidth => BaseWidth * _scaleX;
+    public double ShapeHeight => BaseHeight * _scaleY;
 
     /// <summary>
     /// 部件名称的字号（px）：只影响标签文字大小，**不随部件缩放变化**，
@@ -116,6 +148,13 @@ public class NodeViewModel : ObservableBase
     }
 
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    private int _z;
+    /// <summary>
+    /// 叠放次序（Z 序）：值越大越靠上；由 <see cref="DiagramViewModel"/> 的 BringToFront / SendToBack /
+    /// MoveAbove 等统一分配并持久化。同值时按默认层级（管路 → 文本 → 部件）排列。
+    /// </summary>
+    public int Z { get => _z; set => Set(ref _z, value); }
 
     private int _kindNumber;
     /// <summary>同类部件内的序号：按 <see cref="DiagramViewModel.Nodes"/> 集合中同类型节点的先后顺序从 1 编号，

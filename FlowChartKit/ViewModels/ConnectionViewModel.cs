@@ -92,6 +92,19 @@ public class ConnectionViewModel : ObservableBase
 
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
 
+    private int _z;
+    /// <summary>
+    /// 叠放次序（Z 序）：值越大越靠上；由 <see cref="DiagramViewModel"/> 的 BringToFront / SendToBack /
+    /// MoveAbove 等统一分配并持久化。同值时管路排在文本、部件之下（默认层级）。
+    /// </summary>
+    public int Z { get => _z; set => Set(ref _z, value); }
+
+    /// <summary>容器定位 X：管路控件自身铺满画布并按绝对坐标绘制，故恒为 0（与部件 / 文本共用的容器样式需要此属性）。</summary>
+    public double X => 0;
+
+    /// <summary>容器定位 Y：同 <see cref="X"/>，恒为 0。</summary>
+    public double Y => 0;
+
     private PipeRouting _routing = PipeRouting.Orthogonal;
     /// <summary>
     /// 连线布局：垂直水平（正交折线，默认）/ 直线 / 弧线。与 <see cref="PipeKind"/>（样式）正交，
